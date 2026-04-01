@@ -1,0 +1,47 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Installer logs
+pip-log.txt
+pip-wheel-metadata/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Pytest and coverage
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# Flask / SQLAlchemy runtime data
+instance/
+*.db
+*.sqlite3
+
+# Uploaded and generated artifacts
+uploads/
+*.enc
+results-*.txt
+testing_data-*.txt
+AES-128_Cracker/build/
+AES-128_Cracker/lib*/
+
+# IDE / editor settings
+.vscode/
+.idea/
+*.code-workspace
+
+# OS metadata
+.DS_Store
+Thumbs.db
