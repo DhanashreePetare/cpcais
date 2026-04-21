@@ -484,7 +484,7 @@
       document.getElementById('center-logged-in').style.display = 'block';
       document.getElementById('my-center-id').innerText = state.centerId;
       document.getElementById('my-center-public-key').innerText = meData.public_key || 'Not available';
-      document.getElementById('my-private-key').innerText = state.centerPrivKey || 'Not available';
+      document.getElementById('my-private-key').innerText = state.centerPrivKey ? `${state.centerPrivKey.substring(0, 50)}...\n[Hidden for Security]` : 'Not generated yet.';
       document.getElementById('download-card').style.opacity = '1';
       document.getElementById('download-card').style.pointerEvents = 'auto';
       await fetchAssignedPaper();
