@@ -76,7 +76,8 @@ def test_upload_download_decrypt_flow(client):
         'wrapped_aes_key': download_data['wrapped_aes_key'],
         'signature': download_data['signature'],
         'center_private_key': center_priv_key,
-        'admin_public_key': admin_pub_key
+        'admin_public_key': admin_pub_key,
+        'paper_id': paper_id
     }
     
     resp = client.post('/center/decrypt', json=decrypt_payload)
@@ -105,3 +106,19 @@ def test_time_lock(client):
     resp = client.get(f'/center/download/{paper_id}', headers={'Authorization': f'Bearer {center_token}'})
     assert resp.status_code == 403
     assert 'Not yet released' in resp.json['error']
+
+
+def test_pasted_text_watermark_forensics(client):
+    admin_token, center_token, center_id, center_priv_key, admin_pub_key = test_auth_flow(client)
+
+    pasted_text = f"This leaked paper contains CENTER: {center_id} | CODE: BS1:8:YWJjaWQ"
+    resp = client.post(
+        '/admin/forensics/inspect',
+        json={'text': pasted_text},
+        headers={'Authorization': f'Bearer {admin_token}'}
+    )
+
+    assert resp.status_code == 200
+    assert resp.json['watermark_present'] is True
+    assert resp.json['cleartext_center_id'] == center_id
+    assert resp.json['fingerprint_code'] == 'BS1:8:YWJjaWQ'

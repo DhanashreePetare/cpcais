@@ -6,6 +6,127 @@ from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 
+_ZERO_WIDTH_CHARS = ["\u200b", "\u200c", "\u200d", "\u2060"]
+_ZW_BIT_0 = "\u200b"
+_ZW_BIT_1 = "\u200c"
+_ZW_START = "\u2063"
+_ZW_END = "\u2064"
+
+
+def _normalize_text_watermark(watermark_text):
+    return str(watermark_text or '').strip()
+
+
+def _normalize_text_for_matching(text_blob):
+    text = str(text_blob or '')
+    text = text.replace(_ZW_START, '').replace(_ZW_END, '')
+    for char in _ZERO_WIDTH_CHARS:
+        text = text.replace(char, '')
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _encode_hidden_payload(payload):
+    payload_text = str(payload or '').strip()
+    if not payload_text:
+        return ''
+    payload_bytes = payload_text.encode('utf-8')
+    bit_string = ''.join(f"{byte:08b}" for byte in payload_bytes)
+    encoded_bits = ''.join(_ZW_BIT_1 if bit == '1' else _ZW_BIT_0 for bit in bit_string)
+    return f"{_ZW_START}{encoded_bits}{_ZW_END}"
+
+
+def _decode_hidden_payload(text_blob):
+    text = str(text_blob or '')
+    pattern = re.compile(
+        re.escape(_ZW_START) + r"([\u200b\u200c]+)" + re.escape(_ZW_END)
+    )
+    for match in pattern.finditer(text):
+        bits = ''.join('1' if char == _ZW_BIT_1 else '0' for char in match.group(1))
+        if len(bits) % 8 != 0:
+            continue
+        payload = bytearray()
+        for index in range(0, len(bits), 8):
+            payload.append(int(bits[index:index + 8], 2))
+        try:
+            decoded = payload.decode('utf-8').strip()
+            if decoded:
+                return decoded
+        except UnicodeDecodeError:
+            continue
+    return None
+
+
+def _build_hidden_payload(watermark_text):
+    normalized = _normalize_text_for_matching(watermark_text)
+    if not normalized:
+        return ''
+
+    center_match = re.search(r"CENTER:\s*(\d+)", normalized, re.IGNORECASE)
+    code_match = re.search(r"(BS1:\d+:[A-Za-z0-9_-]+)", normalized)
+    center_value = center_match.group(1) if center_match else "NA"
+    tag_source = code_match.group(1) if code_match else normalized
+    short_tag = hashlib.sha256(tag_source.encode('utf-8')).hexdigest()[:10].upper()
+    return f"CID={center_value};TAG={short_tag}"
+
+
+def _obfuscate_text_watermark(watermark_text):
+    """Hide watermark text using zero-width separators so it looks like ordinary text."""
+    normalized = _normalize_text_watermark(watermark_text)
+    if not normalized:
+        return normalized
+
+    obfuscated = []
+    separator_index = 0
+    for char in normalized:
+        obfuscated.append(char)
+        if char.isalnum():
+            obfuscated.append(_ZERO_WIDTH_CHARS[separator_index % len(_ZERO_WIDTH_CHARS)])
+            separator_index += 1
+    return ''.join(obfuscated)
+
+
+def _build_scattered_watermark_snippets(watermark_text, count=4):
+    hidden_payload = _build_hidden_payload(watermark_text)
+    encoded_hidden_payload = _encode_hidden_payload(hidden_payload)
+    if not encoded_hidden_payload:
+        return []
+    total = max(int(count), 1)
+    return [encoded_hidden_payload for _ in range(total)]
+
+
+def extract_watermark_from_text_blob(text_blob):
+    """Extract watermark data from copied text or a PDF text layer."""
+    if not text_blob:
+        return None
+
+    hidden_payload = _decode_hidden_payload(text_blob)
+    if hidden_payload:
+        center_match = re.search(r"CID=(\d+)", hidden_payload)
+        tag_match = re.search(r"TAG=([A-Z0-9]+)", hidden_payload)
+        if center_match and tag_match:
+            return f"CENTER: {center_match.group(1)} | CODE: TAG:{tag_match.group(1)}"
+        if center_match:
+            return f"CENTER: {center_match.group(1)}"
+
+    text = _normalize_text_for_matching(text_blob)
+    full_match = re.search(
+        r"(CENTER:\s*\d+\s*\|\s*CODE:\s*BS1:\d+:[A-Za-z0-9_-]+)",
+        text,
+        re.IGNORECASE,
+    )
+    if full_match:
+        return full_match.group(1)
+
+    code = extract_boneh_shaw_code(text)
+    center_id = extract_center_id_from_watermark(text)
+    if center_id is not None and code:
+        return f"CENTER: {center_id} | CODE: {code}"
+    if center_id is not None:
+        return f"CENTER: {center_id}"
+    if code:
+        return code
+    return None
+
 def _deterministic_column_permutation(length, context):
     """Create a deterministic permutation for column scrambling (paper-specific)."""
     decorated = []
@@ -69,7 +190,7 @@ def extract_boneh_shaw_code(watermark_text):
     """Extract the compact Boneh-Shaw code from watermark text."""
     if not watermark_text:
         return None
-    match = re.search(r"(BS1:\d+:[A-Za-z0-9_-]+)", str(watermark_text))
+    match = re.search(r"(BS1:\d+:[A-Za-z0-9_-]+)", _normalize_text_for_matching(watermark_text))
     return match.group(1) if match else None
 
 
@@ -77,7 +198,7 @@ def extract_center_id_from_watermark(watermark_text):
     """Extract a cleartext center id if present in the watermark text."""
     if not watermark_text:
         return None
-    match = re.search(r"CENTER:\s*(\d+)", str(watermark_text), re.IGNORECASE)
+    match = re.search(r"CENTER:\s*(\d+)", _normalize_text_for_matching(watermark_text), re.IGNORECASE)
     return int(match.group(1)) if match else None
 
 
@@ -95,11 +216,12 @@ def identify_boneh_shaw_center(watermark_text, paper_context, max_centers=128, r
 
 def embed_watermark_text(pdf_bytes, watermark_text):
     """
-    Embed INVISIBLE watermark text into each page and PDF metadata.
+    Embed INVISIBLE watermark text into multiple spots on each page and PDF metadata.
     """
     input_pdf = PdfReader(io.BytesIO(pdf_bytes))
     output_pdf = PdfWriter()
     existing_metadata = getattr(input_pdf, "metadata", None) or {}
+    snippets = _build_scattered_watermark_snippets(watermark_text, count=4)
     
     for page in input_pdf.pages:
         # Get original page size
@@ -116,8 +238,15 @@ def embed_watermark_text(pdf_bytes, watermark_text):
         can.setFillColor(Color(0, 0, 0, alpha=0.0)) 
         can.setFont("Helvetica", 1) # Tiny font size
         
-        # Draw the string at a specific coordinate
-        can.drawString(10, 10, watermark_text)
+        # Scatter the same watermark across the page so copied text preserves the trace.
+        scatter_positions = [
+            (10, 10),
+            (width * 0.25, 10),
+            (10, height * 0.35),
+            (width * 0.55, height * 0.70),
+        ]
+        for snippet, (x, y) in zip(snippets, scatter_positions):
+            can.drawString(float(x), float(y), snippet)
         can.save()
         
         packet.seek(0)
@@ -136,6 +265,7 @@ def embed_watermark_text(pdf_bytes, watermark_text):
 
     output_pdf.add_metadata({
         '/Fingerprint': merged_fingerprint,
+        '/WatermarkText': watermark_text,
         '/Producer': 'Secure Distribution System v1.0',
         '/Author': 'Exam Administration'
     })
@@ -146,7 +276,7 @@ def embed_watermark_text(pdf_bytes, watermark_text):
 
 def extract_watermark_text(pdf_bytes):
     """
-    Extract the invisible watermark from PDF metadata.
+    Extract the invisible watermark from PDF metadata or text layer.
     """
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -154,6 +284,26 @@ def extract_watermark_text(pdf_bytes):
         metadata = reader.metadata
         if metadata and '/Fingerprint' in metadata:
             return metadata['/Fingerprint']
-        return "No fingerprint found in metadata."
+        if metadata and '/WatermarkText' in metadata:
+            return metadata['/WatermarkText']
+
+        extracted_text = []
+        for page in reader.pages:
+            try:
+                page_text = page.extract_text() or ''
+            except Exception:
+                page_text = ''
+            if page_text:
+                extracted_text.append(page_text)
+                found = extract_watermark_from_text_blob(page_text)
+                if found:
+                    return found
+
+        combined_text = '\n'.join(extracted_text)
+        found = extract_watermark_from_text_blob(combined_text)
+        if found:
+            return found
+
+        return "No fingerprint found in metadata or extracted text."
     except Exception as e:
         return f"Extraction failed: {str(e)}"

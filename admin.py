@@ -15,6 +15,7 @@ from watermark_utils import (
     generate_boneh_shaw_fingerprint,
     embed_watermark_text,
     extract_watermark_text,
+    extract_watermark_from_text_blob,
     extract_boneh_shaw_code,
     extract_center_id_from_watermark,
     identify_boneh_shaw_center,
@@ -61,13 +62,16 @@ def upload_paper(current_user):
     
     # --- STEP: APPLY WATERMARK BEFORE ENCRYPTION ---
     try:
-        # 1. Generate the unique fingerprint for this center/paper
-        fingerprint = generate_boneh_shaw_fingerprint(center_id, file.filename)
-        watermark_text = f"CENTER: {center_id} | CODE: {fingerprint}"
-        
-        # 2. Embed the watermark into the PDF bytes
-        file_data = embed_watermark_text(file_data, watermark_text)
-        print(f"Watermark applied: {watermark_text}")
+        if file_data.lstrip().startswith(b'%PDF'):
+            # 1. Generate the unique fingerprint for this center/paper
+            fingerprint = generate_boneh_shaw_fingerprint(center_id, file.filename)
+            watermark_text = f"CENTER: {center_id} | CODE: {fingerprint}"
+
+            # 2. Embed the watermark into the PDF bytes
+            file_data = embed_watermark_text(file_data, watermark_text)
+            print(f"Watermark applied: {watermark_text}")
+        else:
+            print("Watermark skipped: uploaded file is not a PDF payload")
     except Exception as e:
         print(f"Watermarking error: {e}")
         return jsonify({'error': 'Failed to apply watermark to PDF'}), 500
@@ -202,14 +206,24 @@ def dashboard(current_user):
 @admin_bp.route('/forensics/inspect', methods=['POST'])
 @token_required(role='admin')
 def inspect_watermark(current_user):
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
+    payload = request.get_json(silent=True) or {}
+    pasted_text = payload.get('text')
+    if not pasted_text and request.form:
+        pasted_text = request.form.get('text') or request.form.get('forensic_text')
+    if not pasted_text:
+        raw_body = request.get_data(as_text=True)
+        if raw_body and raw_body.strip() and request.content_type and 'text/plain' in request.content_type:
+            pasted_text = raw_body.strip()
+    inspection_mode = 'text' if pasted_text else 'pdf'
 
-    file = request.files['file']
-    if not file or not file.filename:
-        return jsonify({'error': 'No file selected'}), 400
+    file = request.files.get('file')
+    if not file and not pasted_text:
+        return jsonify({'error': 'No file uploaded or text pasted'}), 400
 
-    paper_id_raw = request.form.get('paper_id')
+    paper_id_raw = request.form.get('paper_id') if request.form else None
+    if not paper_id_raw:
+        paper_id_raw = payload.get('paper_id')
+
     paper_context = None
     paper = None
     if paper_id_raw:
@@ -221,11 +235,19 @@ def inspect_watermark(current_user):
             return jsonify({'error': 'Paper not found'}), 404
         paper_context = paper.filename
 
-    pdf_bytes = file.read()
-    watermark_text = extract_watermark_text(pdf_bytes)
+    watermark_text = None
+    if pasted_text:
+        watermark_text = extract_watermark_from_text_blob(pasted_text)
+        if not watermark_text:
+            watermark_text = str(pasted_text).strip() or None
+    else:
+        pdf_bytes = file.read()
+        watermark_text = extract_watermark_text(pdf_bytes)
+
     extracted_code = extract_boneh_shaw_code(watermark_text)
     cleartext_center_id = extract_center_id_from_watermark(watermark_text)
     inferred_center_id = identify_boneh_shaw_center(watermark_text, paper_context) if paper_context else None
+    watermark_present = bool(watermark_text and (extracted_code or cleartext_center_id is not None))
     notes = []
     if paper_context is None:
         notes.append('No paper_id was supplied, so the code could not be matched against the database.')
@@ -233,6 +255,16 @@ def inspect_watermark(current_user):
         notes.append('The uploaded PDF does not contain a cleartext CENTER field. This usually means you inspected the decrypted output copy, which preserves only the Boneh-Shaw forensic code.')
     if extracted_code:
         notes.append('A Boneh-Shaw code was found in the watermark metadata.')
+    if pasted_text and watermark_present:
+        notes.append('The pasted text contains a detectable watermark trace.')
+    if pasted_text and not watermark_present:
+        notes.append('No watermark pattern was detected in the pasted text.')
+
+    display_watermark_text = None
+    if inspection_mode == 'pdf' and watermark_text:
+        display_watermark_text = watermark_text
+    elif watermark_present:
+        display_watermark_text = 'Hidden trace detected'
 
     if inferred_center_id is not None and paper and inferred_center_id != paper.center_id:
         db.session.add(AuditLog(
@@ -245,10 +277,12 @@ def inspect_watermark(current_user):
     return jsonify({
         'paper_id': paper.id if paper else None,
         'paper_context': paper_context,
-        'watermark_text': watermark_text,
+        'watermark_text': display_watermark_text,
         'fingerprint_code': extracted_code,
         'cleartext_center_id': cleartext_center_id,
         'inferred_center_id': inferred_center_id,
+        'watermark_present': watermark_present,
+        'inspection_mode': inspection_mode,
         'matched': (
             inferred_center_id == paper.center_id if paper and inferred_center_id is not None else None
         ),

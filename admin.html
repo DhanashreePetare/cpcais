@@ -690,18 +690,15 @@
             <div id="forensics-alert" class="alert"></div>
             <div class="grid-2">
               <div class="card">
-                <input type="number" id="forensic-paper-id" placeholder="Paper ID (optional but recommended)">
-                <input type="file" id="forensic-file" accept=".pdf">
+                <textarea id="forensic-text" placeholder="Or paste copied text from a suspected leaked paper here" rows="8" style="width:100%; resize:vertical; padding:12px 13px; margin:8px 0; border-radius:12px; border:1px solid rgba(16,38,96,0.18); background:#f8f9ff; color:var(--text); font-family:inherit; font-size:14px;"></textarea>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                  <button onclick="inspectWatermark()">Inspect Watermark</button>
+                  <button class="btn-outline" onclick="inspectPastedTextWatermark()">Inspect Pasted Text</button>
                 </div>
               </div>
               <div class="card">
                 <h3>Forensic guide</h3>
                 <div class="step-list" style="margin-top:12px;">
-                  <div class="step-item"><strong>Upload suspect file</strong><span>Drop the leaked or copied PDF into the inspector.</span></div>
-                  <div class="step-item"><strong>Optional paper ID</strong><span>Providing the paper ID improves matching with the database.</span></div>
-                  <div class="step-item"><strong>Result</strong><span>The page will show the extracted fingerprint and notes.</span></div>
+                  <div class="step-item"><strong>Paste copied text</strong><span>Paste the copied paper text to detect the embedded center trace and fingerprint.</span></div>
                 </div>
               </div>
             </div>
@@ -881,6 +878,10 @@
           <div class="value"><span class="forensic-status ${matchClass}">${escapeHtml(matchText)}</span></div>
         </div>
         <div class="forensic-item">
+          <div class="label">Watermark Present</div>
+          <div class="value">${data?.watermark_present ? 'Yes' : 'No / Not detected'}</div>
+        </div>
+        <div class="forensic-item">
           <div class="label">Cleartext Center ID</div>
           <div class="value">${escapeHtml(data?.cleartext_center_id ?? 'Not found')}</div>
         </div>
@@ -889,12 +890,8 @@
           <div class="value">${escapeHtml(data?.inferred_center_id ?? 'Not inferred')}</div>
         </div>
         <div class="forensic-item" style="grid-column: 1 / -1;">
-          <div class="label">Fingerprint Code</div>
-          <div class="value">${escapeHtml(data?.fingerprint_code || 'Not found')}</div>
-        </div>
-        <div class="forensic-item" style="grid-column: 1 / -1;">
-          <div class="label">Watermark Text</div>
-          <div class="value">${escapeHtml(data?.watermark_text || 'No watermark text found')}</div>
+          <div class="label">Trace Status</div>
+          <div class="value">${data?.watermark_present ? 'Hidden trace detected in copied text.' : 'No hidden trace detected.'}</div>
         </div>
       `;
 
@@ -971,7 +968,7 @@
         adminPubKey: state.adminPubKey,
         targetCenterId: document.getElementById('target-center-id').value,
         releaseTime: document.getElementById('release-time').value,
-        forensicPaperId: document.getElementById('forensic-paper-id').value,
+        forensicText: document.getElementById('forensic-text').value,
         timelinePaperId: document.getElementById('timeline-paper-id').value,
         pageId: document.querySelector('.nav-btn.active')?.dataset.page || 'page-account'
       }));
@@ -1024,7 +1021,7 @@
         state.adminPubKey = saved.adminPubKey || null;
         if (saved.targetCenterId) document.getElementById('target-center-id').value = saved.targetCenterId;
         if (saved.releaseTime) document.getElementById('release-time').value = saved.releaseTime;
-        if (saved.forensicPaperId) document.getElementById('forensic-paper-id').value = saved.forensicPaperId;
+        if (saved.forensicText) document.getElementById('forensic-text').value = saved.forensicText;
         if (saved.timelinePaperId) document.getElementById('timeline-paper-id').value = saved.timelinePaperId;
         showAdminPage(saved.pageId || 'page-account');
         if (state.adminToken) await applyAdminSession();
@@ -1153,7 +1150,6 @@
       const data = await res.json();
       if (res.ok) {
         showAlert('upload-alert', 'success', `Success! Paper ID is ${data.paper_id}`);
-        document.getElementById('forensic-paper-id').value = data.paper_id;
         document.getElementById('timeline-paper-id').value = data.paper_id;
         document.getElementById('upload-debug-info').style.display = 'block';
         document.getElementById('aes-key-b64').innerText = data.aes_key_b64 || '';
@@ -1168,27 +1164,29 @@
       }
     }
 
-    async function inspectWatermark() {
-      const paperId = document.getElementById('forensic-paper-id').value;
-      const fileInput = document.getElementById('forensic-file');
-      if (!fileInput.files.length) return showAlert('forensics-alert', 'error', 'Select a PDF to inspect.');
-      const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
-      if (paperId) formData.append('paper_id', paperId);
+    async function inspectPastedTextWatermark() {
+      const pastedText = document.getElementById('forensic-text').value.trim();
+      if (!pastedText) return showAlert('forensics-alert', 'error', 'Paste copied paper text first.');
+
+      const payload = { text: pastedText };
+
       const res = await fetch(`${API_URL}/admin/forensics/inspect`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${state.adminToken}` },
-        body: formData
+        headers: {
+          'Authorization': `Bearer ${state.adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) return showAlert('forensics-alert', 'error', data.error || 'Inspection failed');
+      if (!res.ok) return showAlert('forensics-alert', 'error', data.error || 'Text inspection failed');
       renderForensicInspection(data);
-      showAlert('forensics-alert', 'success', 'Watermark inspection completed.');
+      showAlert('forensics-alert', data.watermark_present ? 'success' : 'error', data.watermark_present ? 'Watermark trace found in pasted text.' : 'No watermark trace found in pasted text.');
       await loadAdminDashboard();
     }
 
     async function loadPaperTimeline() {
-      const paperId = document.getElementById('timeline-paper-id').value || document.getElementById('forensic-paper-id').value;
+      const paperId = document.getElementById('timeline-paper-id').value;
       if (!paperId) {
         document.getElementById('timeline-result').innerHTML = '<div class="feed-empty">Enter a Paper ID to load the chain of custody.</div>';
         return showAlert('forensics-alert', 'error', 'Enter a Paper ID to load the timeline.');
@@ -1203,7 +1201,7 @@
     }
 
     function wirePersistedInputs() {
-      ['target-center-id', 'release-time', 'forensic-paper-id', 'timeline-paper-id'].forEach(id => {
+      ['target-center-id', 'release-time', 'timeline-paper-id', 'forensic-text'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.addEventListener('input', persistUiState);

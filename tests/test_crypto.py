@@ -1,4 +1,5 @@
 import pytest
+import io
 from crypto_utils import (
     generate_rsa_keypair, 
     generate_aes_key, 
@@ -9,6 +10,9 @@ from crypto_utils import (
     sign_data, 
     verify_signature
 )
+from reportlab.pdfgen import canvas
+
+from watermark_utils import embed_watermark_text, extract_watermark_text, extract_watermark_from_text_blob
 
 def test_rsa_key_generation():
     priv, pub = generate_rsa_keypair()
@@ -45,3 +49,28 @@ def test_rsa_signing_verification():
     # Test tamper
     tampered_data = b"tampered paper blob"
     assert verify_signature(tampered_data, signature, pub_pem) is False
+
+
+def test_text_blob_watermark_detection():
+    leaked_text = "The exam paper says CENTER: 7 | CODE: BS1:12:YWJjZA"
+    assert extract_watermark_from_text_blob(leaked_text) == "CENTER: 7 | CODE: BS1:12:YWJjZA"
+
+
+def test_zero_width_obfuscated_watermark_detection():
+    leaked_text = "CENTER:\u200b 7 | CODE: BS1:12:YWJjZA"
+    assert extract_watermark_from_text_blob(leaked_text) == "CENTER: 7 | CODE: BS1:12:YWJjZA"
+
+
+def test_pdf_watermark_detection_from_text_layer():
+    buffer = io.BytesIO()
+    pdf_canvas = canvas.Canvas(buffer)
+    pdf_canvas.drawString(100, 750, "Confidential exam paper")
+    pdf_canvas.save()
+
+    pdf_bytes = buffer.getvalue()
+    watermark_text = "CENTER: 12 | CODE: BS1:8:YWJjaWQ"
+    watermarked_bytes = embed_watermark_text(pdf_bytes, watermark_text)
+
+    extracted = extract_watermark_text(watermarked_bytes)
+    assert "CENTER: 12" in extracted
+    assert "BS1:8:YWJjaWQ" in extracted
