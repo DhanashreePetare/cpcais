@@ -753,12 +753,21 @@
   </main>
 
   <script>
-    const API_URL = new URLSearchParams(window.location.search).get('api') || localStorage.getItem('paper_api_url') || 'http://127.0.0.1:5000';
+    // Auto-detect API URL: use same origin if on ngrok/remote, else localhost
+    let API_URL = new URLSearchParams(window.location.search).get('api') || localStorage.getItem('paper_api_url');
+    if (!API_URL) {
+      // Default to current origin (works for ngrok tunnel) or localhost for local dev
+      const origin = window.location.origin;
+      API_URL = origin.includes('ngrok') || origin.includes('localhost:') 
+        ? origin 
+        : 'http://127.0.0.1:5000';
+    }
     const UI_STATE_STORAGE_KEY = 'paper_admin_ui_state_v1';
     let state = { adminToken: null, adminPubKey: null };
 
     if (API_URL) {
       localStorage.setItem('paper_api_url', API_URL);
+      console.log('📍 Using API URL:', API_URL);
     }
 
     function showAdminPage(pageId) {
