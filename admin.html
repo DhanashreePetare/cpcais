@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Portal</title>
+  <style>
+    :root {
+      --bg: #eef3ff;
+      --surface: rgba(255,255,255,0.90);
+      --surface-strong: #ffffff;
+      --primary: #173fcb;
+      --primary-2: #0f2f9b;
+      --accent: #6c5ce7;
+      --text: #16213e;
+      --muted: #6c7590;
+      --line: rgba(17, 35, 89, 0.12);
+      --shadow: 0 24px 80px rgba(18, 44, 110, 0.14);
+      --success: #22a06b;
+      --error: #eb4d4b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(23,63,203,0.20), transparent 28%),
+        radial-gradient(circle at top right, rgba(108,92,231,0.16), transparent 28%),
+        linear-gradient(180deg, #f7f9ff 0%, #eef3ff 100%);
+      padding: 24px;
+    }
+    .shell {
+      width: min(1540px, 100%);
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 23px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 16px 30px rgba(23, 63, 203, 0.22);
+      flex: 0 0 auto;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(23,63,203,0.08);
+      color: var(--primary-2);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    h1, h2, h3, h4 { margin: 0; }
+    h1 { color: var(--primary-2); font-size: clamp(2rem, 3vw, 2.8rem); letter-spacing: -0.04em; }
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 74ch;
+    }
+    .pill-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      color: var(--primary-2);
+      border: 1px solid rgba(23,63,203,0.18);
+      background: rgba(23,63,203,0.06);
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      display: grid;
+      gap: 14px;
+      align-self: start;
+    }
+    .sidebar-card,
+    .page-card,
+    .sub-card {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 14px 36px rgba(11,28,72,0.08);
+    }
+    .sidebar-card { padding: 16px; }
+    .sidebar-title {
+      color: var(--primary-2);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+    .nav-list {
+      display: grid;
+      gap: 10px;
+    }
+    .nav-btn {
+      width: 100%;
+      border: 1px solid rgba(23,63,203,0.12);
+      background: rgba(23,63,203,0.04);
+      color: var(--primary-2);
+      padding: 12px 14px;
+      border-radius: 16px;
+      text-align: left;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .nav-btn.active {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 12px 24px rgba(23,63,203,0.20);
+    }
+    .main {
+      display: grid;
+      gap: 18px;
+    }
+    .hero {
+      padding: 24px;
+      background: linear-gradient(135deg, rgba(23,63,203,0.08), rgba(108,92,231,0.08));
+      border: 1px solid rgba(23,63,203,0.12);
+      border-radius: 24px;
+    }
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .hero-pill {
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary-2);
+      background: rgba(255,255,255,0.66);
+      border: 1px solid rgba(23,63,203,0.14);
+      white-space: nowrap;
+    }
+    .hero-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .mini-metric {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(23,63,203,0.12);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    .mini-metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .mini-metric .value {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--primary-2);
+    }
+    .pages {
+      display: grid;
+      gap: 18px;
+    }
+    .page-card {
+      padding: 22px;
+      display: none;
+    }
+    .page-card.active { display: block; }
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .page-head p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(34,160,107,0.12);
+      color: var(--success);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      background: rgba(255,255,255,0.94);
+      border: 1px solid rgba(23,63,203,0.10);
+      border-radius: 22px;
+      padding: 20px;
+    }
+    .card h3 { color: var(--primary-2); margin-bottom: 10px; }
+    .card p { color: var(--muted); line-height: 1.55; margin: 0; }
+    input, select, button {
+      width: 100%;
+      padding: 12px 13px;
+      margin: 8px 0;
+      border-radius: 12px;
+      border: 1px solid rgba(16,38,96,0.18);
+      background: #f8f9ff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+    }
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: rgba(23,63,203,0.55);
+      box-shadow: 0 0 0 3px rgba(23,63,203,0.12);
+    }
+    button {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border: none;
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.03); }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-2);
+      border: 1px solid rgba(23,63,203,0.26);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #eb4d4b, #c73634);
+    }
+    .alert {
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .alert.success { display:block; background: rgba(34,160,107,0.14); color: var(--success); border: 1px solid rgba(34,160,107,0.4); }
+    .alert.error { display:block; background: rgba(235,77,75,0.12); color: var(--error); border: 1px solid rgba(235,77,75,0.4); }
+    pre {
+      margin: 0;
+      background: linear-gradient(180deg, #f6f8ff, #edf2ff);
+      padding: 14px;
+      border-radius: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      color: var(--primary-2);
+      font-size: 12px;
+      max-height: 250px;
+      border: 1px solid rgba(23,63,203,0.08);
+    }
+    .debug-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .debug-label { font-size: 12px; color: var(--muted); text-transform: uppercase; margin: 0 0 6px; letter-spacing: 0.5px; }
+    #page-dashboard .debug-label {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--primary-2);
+      text-transform: none;
+      letter-spacing: 0;
+      margin-bottom: 10px;
+    }
+    .step-list {
+      display: grid;
+      gap: 10px;
+    }
+    .step-item {
+      border: 1px solid rgba(23,63,203,0.12);
+      background: rgba(23,63,203,0.04);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .step-item strong { display:block; color: var(--primary-2); margin-bottom: 4px; }
+    .step-item span { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+    .split { display: grid; grid-template-columns: 1fr 0.85fr; gap: 14px; }
+    .sub-card {
+      padding: 18px;
+      background: rgba(255,255,255,0.92);
+    }
+    .subhead {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .subhead span {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric-item {
+      border: 1px solid rgba(23,63,203,0.14);
+      border-radius: 14px;
+      background: rgba(23,63,203,0.04);
+      padding: 12px;
+    }
+    .metric-item .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    .metric-item .value {
+      color: var(--primary-2);
+      font-weight: 800;
+      font-size: 1.1rem;
+    }
+    .feed-list {
+      display: grid;
+      gap: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .feed-item {
+      border: 1px solid rgba(23,63,203,0.14);
+      border-radius: 14px;
+      background: rgba(23,63,203,0.04);
+      padding: 12px;
+    }
+    .feed-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .feed-title {
+      color: var(--primary-2);
+      font-weight: 800;
+      font-size: 0.95rem;
+      margin: 0;
+    }
+    .feed-time {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .feed-meta {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+    .feed-empty {
+      color: var(--muted);
+      font-size: 0.92rem;
+      border: 1px dashed rgba(23,63,203,0.2);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(23,63,203,0.03);
+    }
+    .forensic-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .forensic-item {
+      border: 1px solid rgba(23,63,203,0.14);
+      border-radius: 12px;
+      background: rgba(23,63,203,0.04);
+      padding: 12px;
+    }
+    .forensic-item .label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    .forensic-item .value {
+      color: var(--primary-2);
+      font-size: 0.95rem;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .forensic-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      border-radius: 999px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 800;
+      border: 1px solid rgba(23,63,203,0.18);
+      background: rgba(23,63,203,0.08);
+      color: var(--primary-2);
+    }
+    .forensic-status.match {
+      border-color: rgba(34,160,107,0.4);
+      background: rgba(34,160,107,0.14);
+      color: var(--success);
+    }
+    .forensic-status.mismatch {
+      border-color: rgba(235,77,75,0.4);
+      background: rgba(235,77,75,0.12);
+      color: var(--error);
+    }
+    .forensic-notes {
+      display: grid;
+      gap: 8px;
+    }
+    .forensic-note {
+      border: 1px solid rgba(23,63,203,0.14);
+      border-radius: 12px;
+      background: rgba(23,63,203,0.04);
+      padding: 10px 12px;
+      color: var(--text);
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+    .timeline-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .timeline-summary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .timeline-event {
+      position: relative;
+      border: 1px solid rgba(23,63,203,0.14);
+      border-radius: 14px;
+      background: rgba(23,63,203,0.04);
+      padding: 12px;
+    }
+    .timeline-event .label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    .timeline-event .value {
+      color: var(--primary-2);
+      font-size: 0.95rem;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .timeline-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      border-radius: 999px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(23,63,203,0.08);
+      color: var(--primary-2);
+      border: 1px solid rgba(23,63,203,0.18);
+    }
+    .timeline-event-list {
+      display: grid;
+      gap: 10px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    @media (max-width: 1180px) {
+      .workspace { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+    }
+    @media (max-width: 980px) {
+      .grid-2,
+      .grid-3,
+      .hero-grid,
+      .split { grid-template-columns: 1fr; }
+      .shell { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">🛡</div>
+        <div>
+          <div class="eyebrow">Admin Control Center</div>
+          <h1>Secure Paper Administration Dashboard</h1>
+        </div>
+      </div>
+      <a class="pill-link" href="index.html">Back to landing page</a>
+    </div>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <div class="sidebar-title">Pages</div>
+          <div class="nav-list">
+            <button class="nav-btn active" data-page="page-account" onclick="showAdminPage('page-account')">Account</button>
+            <button class="nav-btn" data-page="page-upload" onclick="showAdminPage('page-upload')">Upload</button>
+            <button class="nav-btn" data-page="page-dashboard" onclick="showAdminPage('page-dashboard')">Dashboard</button>
+            <button class="nav-btn" data-page="page-forensics" onclick="showAdminPage('page-forensics')">Forensics</button>
+            <button class="nav-btn" data-page="page-timeline" onclick="showAdminPage('page-timeline')">Timeline</button>
+          </div>
+        </div>
+
+      </aside>
+
+      <section class="main">
+        <div class="pages">
+          <article id="page-account" class="page-card active">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Account</div>
+                <h2>Admin Authentication</h2>
+                <p>Sign in here first. Once logged in, the upload and analysis pages become available.</p>
+              </div>
+              <div class="badge">Admin only</div>
+            </div>
+            <div class="split">
+              <div class="card">
+                <div id="admin-alert" class="alert"></div>
+                <div id="admin-login-form">
+                  <input type="text" id="admin-user" placeholder="Username">
+                  <input type="password" id="admin-pass" placeholder="Password">
+                  <div style="display:flex; gap:10px;">
+                    <button onclick="adminLogin()">Login</button>
+                    <button class="btn-outline" onclick="adminRegister()">Register</button>
+                  </div>
+                </div>
+                <div id="admin-logged-in" style="display:none; text-align:center;">
+                  <div class="badge" style="margin-bottom:14px;">Logged In as Admin</div>
+                  <div style="font-size:13px; margin-bottom:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">My Public Key</div>
+                  <pre id="admin-public-key">Not loaded yet.</pre>
+                  <div style="font-size:13px; margin:14px 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">My Private Key</div>
+                  <pre id="admin-private-key">Not loaded yet.</pre>
+                  <button class="btn-danger" onclick="adminLogout()">Logout</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>How this page works</h3>
+                <div class="step-list" style="margin-top:12px;">
+                  <div class="step-item"><strong>Step 1</strong><span>Login or register the admin account on this portal.</span></div>
+                  <div class="step-item"><strong>Step 2</strong><span>Switch to the upload or analysis pages from the sidebar.</span></div>
+                  <div class="step-item"><strong>Step 3</strong><span>Use the same session while moving across pages.</span></div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article id="page-upload" class="page-card">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Upload</div>
+                <h2>Upload Question Paper</h2>
+                <p>Assign one paper to one recipient site and schedule its release time.</p>
+              </div>
+              <div class="badge" style="background: rgba(23,63,203,0.10); color: var(--primary-2);">Encrypted delivery</div>
+            </div>
+            <div class="grid-2">
+              <div class="card" id="upload-card" style="opacity:0.5; pointer-events:none;">
+                <div id="upload-alert" class="alert"></div>
+                <select id="target-center-id">
+                  <option value="">Loading centers...</option>
+                </select>
+                <input type="datetime-local" id="release-time">
+                <input type="file" id="paper-file" accept=".pdf,.txt">
+                <button onclick="uploadPaper()">Encrypt & Upload</button>
+              </div>
+              <div class="card">
+                <h3>Upload notes</h3>
+                <div class="step-list" style="margin-top:12px;">
+                  <div class="step-item"><strong>Paper assignment</strong><span>The selected file is encrypted and linked to the recipient site ID.</span></div>
+                  <div class="step-item"><strong>Release time</strong><span>The paper cannot be downloaded before the scheduled time.</span></div>
+                  <div class="step-item"><strong>Debug output</strong><span>Encryption details appear after a successful upload.</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="section" id="upload-debug-info" style="display:none; margin-top:18px; padding:0; border:none; background:transparent; box-shadow:none;">
+              <div class="section-head">
+                <div>
+                  <h3>Encryption Debug Info</h3>
+                  <span>Visible after successful upload</span>
+                </div>
+              </div>
+              <div class="debug-grid">
+                <div class="sub-card"><div class="debug-label">AES Key (base64)</div><pre id="aes-key-b64"></pre></div>
+                <div class="sub-card"><div class="debug-label">Encrypted AES Key</div><pre id="encrypted-aes-key-b64"></pre></div>
+                <div class="sub-card"><div class="debug-label">Encrypted Paper</div><pre id="encrypted-paper-b64"></pre></div>
+                <div class="sub-card"><div class="debug-label">SHA-256 Hash</div><pre id="encrypted-paper-sha256"></pre></div>
+              </div>
+            </div>
+          </article>
+
+          <article id="page-dashboard" class="page-card">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Dashboard</div>
+                <h2>My Security Dashboard</h2>
+                <p>View your own uploads, actions, and alerts in one place.</p>
+              </div>
+              <button class="btn-outline" style="width:auto; min-width:180px;" onclick="loadAdminDashboard()">Refresh Dashboard</button>
+            </div>
+            <div id="security-dashboard-alert" class="alert"></div>
+            <div class="grid-3">
+              <div class="sub-card">
+                <div class="debug-label">My Summary</div>
+                <div id="admin-summary" class="metric-grid"></div>
+              </div>
+              <div class="sub-card">
+                <div class="debug-label">My Recent Uploads</div>
+                <div id="admin-recent-papers" class="feed-list"></div>
+              </div>
+              <div class="sub-card">
+                <div class="debug-label">My Recent Activity</div>
+                <div id="admin-recent-logs" class="feed-list"></div>
+              </div>
+            </div>
+          </article>
+
+          <article id="page-forensics" class="page-card">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Forensics</div>
+                <h2>Watermark Forensics</h2>
+                <p>Inspect a suspected leaked PDF and see whether the fingerprint matches a known paper.</p>
+              </div>
+              <div class="badge">Leak analysis</div>
+            </div>
+            <div id="forensics-alert" class="alert"></div>
+            <div class="grid-2">
+              <div class="card">
+                <input type="number" id="forensic-paper-id" placeholder="Paper ID (optional but recommended)">
+                <input type="file" id="forensic-file" accept=".pdf">
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <button onclick="inspectWatermark()">Inspect Watermark</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>Forensic guide</h3>
+                <div class="step-list" style="margin-top:12px;">
+                  <div class="step-item"><strong>Upload suspect file</strong><span>Drop the leaked or copied PDF into the inspector.</span></div>
+                  <div class="step-item"><strong>Optional paper ID</strong><span>Providing the paper ID improves matching with the database.</span></div>
+                  <div class="step-item"><strong>Result</strong><span>The page will show the extracted fingerprint and notes.</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="debug-grid" style="margin-top:14px;">
+              <div class="sub-card">
+                <div class="debug-label">Inspection Result</div>
+                <div id="forensic-result" class="forensic-grid">
+                  <div class="feed-empty" style="grid-column: 1 / -1;">No inspection performed yet.</div>
+                </div>
+              </div>
+              <div class="sub-card">
+                <div class="debug-label">Quick Notes</div>
+                <div id="forensic-hint" class="forensic-notes">
+                  <div class="feed-empty">Use paper ID when possible for a cleaner match.</div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article id="page-timeline" class="page-card">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Timeline</div>
+                <h2>Chain of Custody</h2>
+                <p>Track a paper from creation through release, download, and security events.</p>
+              </div>
+              <div class="badge" style="background: rgba(23,63,203,0.10); color: var(--primary-2);">Audit trail</div>
+            </div>
+            <div class="grid-2">
+              <div class="card">
+                <input type="number" id="timeline-paper-id" placeholder="Paper ID to load timeline">
+                <button class="btn-outline" onclick="loadPaperTimeline()">Load Timeline</button>
+                <div class="step-list" style="margin-top:12px;">
+                  <div class="step-item"><strong>What you see</strong><span>Paper creation, release time, upload events, downloads, and security events.</span></div>
+                  <div class="step-item"><strong>Why it helps</strong><span>It makes the paper lifecycle easy to explain during the demo.</span></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="debug-label">Chain of Custody</div>
+                <div id="timeline-result" class="timeline-grid">
+                  <div class="feed-empty">No timeline loaded yet.</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const API_URL = new URLSearchParams(window.location.search).get('api') || localStorage.getItem('paper_api_url') || 'http://127.0.0.1:5000';
+    const UI_STATE_STORAGE_KEY = 'paper_admin_ui_state_v1';
+    let state = { adminToken: null, adminPubKey: null };
+
+    if (API_URL) {
+      localStorage.setItem('paper_api_url', API_URL);
+    }
+
+    function showAdminPage(pageId) {
+      document.querySelectorAll('.page-card').forEach(card => card.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(button => button.classList.remove('active'));
+      const activePage = document.getElementById(pageId);
+      const activeButton = document.querySelector(`.nav-btn[data-page="${pageId}"]`);
+      if (activePage) activePage.classList.add('active');
+      if (activeButton) activeButton.classList.add('active');
+    }
+
+    function showAlert(id, type, msg) {
+      const el = document.getElementById(id);
+      el.className = `alert ${type}`;
+      el.innerText = msg;
+      setTimeout(() => { el.style.display = 'none'; el.className = 'alert'; }, 5000);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function formatDateTime(value) {
+      if (!value) return 'N/A';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return 'N/A';
+      return parsed.toLocaleString();
+    }
+
+    function renderSummary(summary) {
+      const container = document.getElementById('admin-summary');
+      const items = [
+        ['Admin ID', summary?.admin_id ?? 'N/A'],
+        ['Total Actions', summary?.total_actions ?? 0],
+        ['Total Uploads', summary?.total_uploads ?? 0],
+        ['Encrypt Actions', summary?.total_encrypt_actions ?? 0],
+        ['Suspicious Events', summary?.suspicious_events ?? 0],
+      ];
+      container.innerHTML = items
+        .map(([label, value]) => `
+          <div class="metric-item">
+            <div class="label">${escapeHtml(label)}</div>
+            <div class="value">${escapeHtml(value)}</div>
+          </div>
+        `)
+        .join('');
+    }
+
+    function renderRecentUploads(uploadEntries) {
+      const container = document.getElementById('admin-recent-papers');
+      if (!uploadEntries || !uploadEntries.length) {
+        container.innerHTML = '<div class="feed-empty">No uploads found for this admin yet.</div>';
+        return;
+      }
+      container.innerHTML = uploadEntries.map(entry => `
+        <div class="feed-item">
+          <div class="feed-top">
+            <p class="feed-title">Paper #${escapeHtml(entry.paper_id)}</p>
+            <span class="feed-time">${escapeHtml(formatDateTime(entry.created_at))}</span>
+          </div>
+          <div class="feed-meta">Center ID: ${escapeHtml(entry.center_id)} | Status: ${escapeHtml(entry.status)}</div>
+          <div class="feed-meta">File: ${escapeHtml(entry.filename || 'N/A')}</div>
+          <div class="feed-meta">Release: ${escapeHtml(formatDateTime(entry.release_time))}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderRecentLogs(logEntries) {
+      const container = document.getElementById('admin-recent-logs');
+      if (!logEntries || !logEntries.length) {
+        container.innerHTML = '<div class="feed-empty">No activity logs found for this admin yet.</div>';
+        return;
+      }
+      container.innerHTML = logEntries.map(log => `
+        <div class="feed-item">
+          <div class="feed-top">
+            <p class="feed-title">${escapeHtml(log.action || 'event')}</p>
+            <span class="feed-time">${escapeHtml(formatDateTime(log.timestamp))}</span>
+          </div>
+          <div class="feed-meta">Log ID: ${escapeHtml(log.id)} | User ID: ${escapeHtml(log.user_id)}</div>
+          <div class="feed-meta">${escapeHtml(log.details || 'No details')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderForensicInspection(data) {
+      const container = document.getElementById('forensic-result');
+      const matched = data?.matched;
+      let matchText = 'Not evaluated';
+      let matchClass = '';
+      if (matched === true) {
+        matchText = 'Match';
+        matchClass = 'match';
+      } else if (matched === false) {
+        matchText = 'Mismatch';
+        matchClass = 'mismatch';
+      }
+
+      container.innerHTML = `
+        <div class="forensic-item">
+          <div class="label">Paper ID</div>
+          <div class="value">${escapeHtml(data?.paper_id ?? 'N/A')}</div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Match Status</div>
+          <div class="value"><span class="forensic-status ${matchClass}">${escapeHtml(matchText)}</span></div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Cleartext Center ID</div>
+          <div class="value">${escapeHtml(data?.cleartext_center_id ?? 'Not found')}</div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Inferred Center ID</div>
+          <div class="value">${escapeHtml(data?.inferred_center_id ?? 'Not inferred')}</div>
+        </div>
+        <div class="forensic-item" style="grid-column: 1 / -1;">
+          <div class="label">Fingerprint Code</div>
+          <div class="value">${escapeHtml(data?.fingerprint_code || 'Not found')}</div>
+        </div>
+        <div class="forensic-item" style="grid-column: 1 / -1;">
+          <div class="label">Watermark Text</div>
+          <div class="value">${escapeHtml(data?.watermark_text || 'No watermark text found')}</div>
+        </div>
+      `;
+
+      const notesContainer = document.getElementById('forensic-hint');
+      const notes = Array.isArray(data?.notes) ? data.notes : [];
+      if (!notes.length) {
+        notesContainer.innerHTML = '<div class="feed-empty">No additional notes.</div>';
+        return;
+      }
+      notesContainer.innerHTML = notes
+        .map(note => `<div class="forensic-note">${escapeHtml(note)}</div>`)
+        .join('');
+    }
+
+    function formatTimelineAction(action) {
+      const mapping = {
+        created: 'Paper Created',
+        release_scheduled: 'Release Scheduled',
+        encrypt: 'Encrypted',
+        hash: 'Hash Recorded',
+        download: 'Downloaded',
+        decrypt: 'Decrypted',
+        signature_failed: 'Signature Failed',
+        unauthorized_download: 'Unauthorized Download',
+        early_download_blocked: 'Early Download Blocked',
+        missing_encrypted_file: 'Missing Encrypted File',
+        missing_paper: 'Missing Paper',
+        forensic_mismatch: 'Forensic Mismatch',
+      };
+      return mapping[action] || action.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+    }
+
+    function renderTimelineReport(data) {
+      const container = document.getElementById('timeline-result');
+      const paper = data?.paper || {};
+      const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
+
+      const summaryCards = [
+        ['Paper ID', paper.id ?? 'N/A'],
+        ['File Name', paper.filename || 'N/A'],
+        ['Center ID', paper.center_id ?? 'N/A'],
+        ['Status', paper.status || 'N/A'],
+        ['Release Time', formatDateTime(paper.release_time)],
+        ['Created At', formatDateTime(paper.created_at)],
+      ].map(([label, value]) => `
+        <div class="timeline-event">
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="value">${escapeHtml(value)}</div>
+        </div>
+      `).join('');
+
+      const eventsHtml = timeline.length
+        ? timeline.map((event, index) => `
+            <div class="timeline-event">
+              <div class="feed-top">
+                <p class="feed-title">${escapeHtml(formatTimelineAction(event.action))}</p>
+                <span class="feed-time">#${index + 1} • ${escapeHtml(formatDateTime(event.timestamp))}</span>
+              </div>
+              <div class="value" style="margin-bottom:8px;"><span class="timeline-badge">${escapeHtml(event.action || 'event')}</span></div>
+              <div class="feed-meta">${escapeHtml(event.details || 'No details')}</div>
+            </div>
+          `).join('')
+        : '<div class="feed-empty">No timeline events found for this paper.</div>';
+
+      container.innerHTML = `
+        <div class="timeline-summary">${summaryCards}</div>
+        <div class="timeline-event-list">${eventsHtml}</div>
+      `;
+    }
+
+    function persistUiState() {
+      localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify({
+        adminToken: state.adminToken,
+        adminPubKey: state.adminPubKey,
+        targetCenterId: document.getElementById('target-center-id').value,
+        releaseTime: document.getElementById('release-time').value,
+        forensicPaperId: document.getElementById('forensic-paper-id').value,
+        timelinePaperId: document.getElementById('timeline-paper-id').value,
+        pageId: document.querySelector('.nav-btn.active')?.dataset.page || 'page-account'
+      }));
+    }
+
+    function setCenterSelectStatus(message, disabled = true) {
+      const select = document.getElementById('target-center-id');
+      select.innerHTML = '';
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = message;
+      select.appendChild(option);
+      select.disabled = disabled;
+    }
+
+    function populateCenterSelect(centers, preferredCenterId) {
+      const select = document.getElementById('target-center-id');
+      select.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select Center ID';
+      select.appendChild(placeholder);
+
+      if (!centers.length) {
+        placeholder.textContent = 'No centers available';
+        select.disabled = true;
+        return;
+      }
+
+      select.disabled = false;
+      centers.forEach(center => {
+        const option = document.createElement('option');
+        option.value = String(center.id);
+        option.textContent = `Center ${center.id}`;
+        select.appendChild(option);
+      });
+
+      const preferred = String(preferredCenterId || '');
+      const hasPreferred = centers.some(center => String(center.id) === preferred);
+      select.value = hasPreferred ? preferred : '';
+    }
+
+    async function hydrateUiState() {
+      const raw = localStorage.getItem(UI_STATE_STORAGE_KEY);
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw);
+        state.adminToken = saved.adminToken || null;
+        state.adminPubKey = saved.adminPubKey || null;
+        if (saved.targetCenterId) document.getElementById('target-center-id').value = saved.targetCenterId;
+        if (saved.releaseTime) document.getElementById('release-time').value = saved.releaseTime;
+        if (saved.forensicPaperId) document.getElementById('forensic-paper-id').value = saved.forensicPaperId;
+        if (saved.timelinePaperId) document.getElementById('timeline-paper-id').value = saved.timelinePaperId;
+        showAdminPage(saved.pageId || 'page-account');
+        if (state.adminToken) await applyAdminSession();
+      } catch (error) {
+        localStorage.removeItem(UI_STATE_STORAGE_KEY);
+      }
+    }
+
+    async function fetchAdminKeys() {
+      if (!state.adminToken) return;
+      const res = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${state.adminToken}` } });
+      if (!res.ok) {
+        adminLogout();
+        return;
+      }
+      const data = await res.json();
+      state.adminPubKey = data.public_key;
+      document.getElementById('admin-public-key').innerText = data.public_key || 'Not available';
+      document.getElementById('admin-private-key').innerText = data.private_key ? `${data.private_key.substring(0, 50)}...\n[Hidden for Security]` : 'Not available';
+      persistUiState();
+    }
+
+    async function fetchAvailableCenters() {
+      if (!state.adminToken) return;
+      try {
+        const res = await fetch(`${API_URL}/auth/centers`, { headers: { 'Authorization': `Bearer ${state.adminToken}` } });
+        const data = await res.json();
+        if (!res.ok) {
+          setCenterSelectStatus('Failed to load centers', true);
+          showAlert('upload-alert', 'error', data.message || data.error || 'Failed to load centers');
+          return;
+        }
+        const saved = JSON.parse(localStorage.getItem(UI_STATE_STORAGE_KEY) || '{}');
+        populateCenterSelect(data.centers || [], saved.targetCenterId);
+        persistUiState();
+      } catch (error) {
+        setCenterSelectStatus('Failed to load centers', true);
+        showAlert('upload-alert', 'error', 'Failed to load centers. Restart the server and login again.');
+      }
+    }
+
+    async function applyAdminSession() {
+      document.getElementById('admin-login-form').style.display = 'none';
+      document.getElementById('admin-logged-in').style.display = 'block';
+      document.getElementById('upload-card').style.opacity = '1';
+      document.getElementById('upload-card').style.pointerEvents = 'auto';
+      await fetchAdminKeys();
+      await fetchAvailableCenters();
+      await loadAdminDashboard();
+      persistUiState();
+    }
+
+    async function adminRegister() {
+      const u = document.getElementById('admin-user').value;
+      const p = document.getElementById('admin-pass').value;
+      if (!u || !p) return showAlert('admin-alert', 'error', 'Need username and password');
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p, email: `${u}@admin.com`, role: 'admin' })
+      });
+      const data = await res.json();
+      if (res.ok) showAlert('admin-alert', 'success', 'Admin registered! Please login.');
+      else showAlert('admin-alert', 'error', data.message || 'Registration failed');
+    }
+
+    async function adminLogin() {
+      const u = document.getElementById('admin-user').value;
+      const p = document.getElementById('admin-pass').value;
+      if (!u || !p) return showAlert('admin-alert', 'error', 'Need username and password');
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json();
+      if (res.ok && data.role === 'admin') {
+        state.adminToken = data.token;
+        showAlert('admin-alert', 'success', 'Login successful!');
+        await applyAdminSession();
+      } else {
+        showAlert('admin-alert', 'error', data.message || 'Invalid admin credentials');
+      }
+    }
+
+    function adminLogout() {
+      state.adminToken = null;
+      state.adminPubKey = null;
+      document.getElementById('admin-login-form').style.display = 'block';
+      document.getElementById('admin-logged-in').style.display = 'none';
+      document.getElementById('upload-card').style.opacity = '0.5';
+      document.getElementById('upload-card').style.pointerEvents = 'none';
+      persistUiState();
+    }
+
+    async function loadAdminDashboard() {
+      if (!state.adminToken) return;
+      const res = await fetch(`${API_URL}/admin/dashboard`, {
+        headers: { 'Authorization': `Bearer ${state.adminToken}` }
+      });
+      const data = await res.json();
+      if (!res.ok) return showAlert('security-dashboard-alert', 'error', data.error || 'Failed to load dashboard');
+      const recentUploads = Array.isArray(data.recent_uploads)
+        ? data.recent_uploads
+        : (Array.isArray(data.recent_papers) ? data.recent_papers : []);
+      renderSummary(data.summary || {});
+      renderRecentUploads(recentUploads);
+      renderRecentLogs(Array.isArray(data.recent_logs) ? data.recent_logs : []);
+    }
+
+    async function uploadPaper() {
+      const cid = document.getElementById('target-center-id').value;
+      const rt = document.getElementById('release-time').value;
+      const fileInput = document.getElementById('paper-file');
+      if (!cid) return showAlert('upload-alert', 'error', 'Select a center ID from the dropdown.');
+      if (!rt || !fileInput.files.length) return showAlert('upload-alert', 'error', 'Fill all fields and select a file.');
+      const formData = new FormData();
+      formData.append('center_id', cid);
+      formData.append('release_time', new Date(rt).toISOString());
+      formData.append('file', fileInput.files[0]);
+      const res = await fetch(`${API_URL}/admin/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${state.adminToken}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showAlert('upload-alert', 'success', `Success! Paper ID is ${data.paper_id}`);
+        document.getElementById('forensic-paper-id').value = data.paper_id;
+        document.getElementById('timeline-paper-id').value = data.paper_id;
+        document.getElementById('upload-debug-info').style.display = 'block';
+        document.getElementById('aes-key-b64').innerText = data.aes_key_b64 || '';
+        document.getElementById('encrypted-aes-key-b64').innerText = data.encrypted_aes_key_b64 || '';
+        document.getElementById('encrypted-paper-b64').innerText = (data.encrypted_paper_b64 || '').substring(0, 100) + '...';
+        document.getElementById('encrypted-paper-sha256').innerText = data.encrypted_paper_sha256 || '';
+        persistUiState();
+        await loadAdminDashboard();
+      } else {
+        showAlert('upload-alert', 'error', data.error || 'Upload failed');
+        document.getElementById('upload-debug-info').style.display = 'none';
+      }
+    }
+
+    async function inspectWatermark() {
+      const paperId = document.getElementById('forensic-paper-id').value;
+      const fileInput = document.getElementById('forensic-file');
+      if (!fileInput.files.length) return showAlert('forensics-alert', 'error', 'Select a PDF to inspect.');
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      if (paperId) formData.append('paper_id', paperId);
+      const res = await fetch(`${API_URL}/admin/forensics/inspect`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${state.adminToken}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) return showAlert('forensics-alert', 'error', data.error || 'Inspection failed');
+      renderForensicInspection(data);
+      showAlert('forensics-alert', 'success', 'Watermark inspection completed.');
+      await loadAdminDashboard();
+    }
+
+    async function loadPaperTimeline() {
+      const paperId = document.getElementById('timeline-paper-id').value || document.getElementById('forensic-paper-id').value;
+      if (!paperId) {
+        document.getElementById('timeline-result').innerHTML = '<div class="feed-empty">Enter a Paper ID to load the chain of custody.</div>';
+        return showAlert('forensics-alert', 'error', 'Enter a Paper ID to load the timeline.');
+      }
+      const res = await fetch(`${API_URL}/admin/papers/${paperId}/timeline`, {
+        headers: { 'Authorization': `Bearer ${state.adminToken}` }
+      });
+      const data = await res.json();
+      if (!res.ok) return showAlert('forensics-alert', 'error', data.error || 'Timeline load failed');
+      renderTimelineReport(data);
+      showAlert('forensics-alert', 'success', 'Chain of custody loaded.');
+    }
+
+    function wirePersistedInputs() {
+      ['target-center-id', 'release-time', 'forensic-paper-id', 'timeline-paper-id'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', persistUiState);
+          el.addEventListener('change', persistUiState);
+        }
+      });
+    }
+
+    document.getElementById('release-time').value = new Date().toISOString().slice(0, 16);
+    wirePersistedInputs();
+    hydrateUiState();
+  </script>
+</body>
+</html>

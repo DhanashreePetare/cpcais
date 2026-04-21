@@ -1,855 +1,384 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Question Paper Distribution</title>
-    <style>
-        :root {
-            --bg: #eef2fb;
-            --surface: #ffffff;
-            --primary: #1a4ad6;
-            --accent: #1239a7;
-            --text: #1d1f33;
-            --muted: #7c849f;
-            --success: #22a06b;
-            --error: #eb4d4b;
-        }
-
-        body {
-            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: radial-gradient(circle at top, rgba(26,74,214,0.18), transparent 45%), var(--bg);
-            min-height: 100vh;
-            color: var(--text);
-            margin: 0;
-            padding: 30px 20px 60px;
-            display: flex;
-            justify-content: center;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1400px;
-            background: var(--surface);
-            border-radius: 20px;
-            padding: 48px;
-            box-shadow: 0 25px 70px rgba(21,57,129,0.18);
-            border: 1px solid rgba(16,38,96,0.08);
-        }
-
-        h1 {
-            text-align: center;
-            color: var(--primary);
-            margin: 0 0 30px;
-            font-size: 2.4rem;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--primary);
-            padding-bottom: 10px;
-        }
-
-        .tab {
-            padding: 12px 26px;
-            background: rgba(18,57,167,0.08);
-            color: var(--muted);
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            border-radius: 8px;
-            transition: all 0.25s ease;
-            font-weight: 600;
-        }
-
-        .tab.active {
-            background: var(--accent);
-            color: #fff;
-            box-shadow: 0 10px 25px rgba(18,57,167,0.25);
-        }
-        
-        .tab:hover:not(.active) {
-            background: rgba(18,57,167,0.16);
-        }
-
-        .panel {
-            display: none;
-            animation: fadeIn 0.3s ease-in-out;
-        }
-
-        .panel.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card {
-            background: #fff;
-            padding: 28px;
-            border-radius: 14px;
-            margin-bottom: 24px;
-            box-shadow: 0 14px 40px rgba(11,28,72,0.08);
-            border: 1px solid rgba(16,38,96,0.05);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .card::after {
-            content: "";
-            position: absolute;
-            inset: 12px;
-            border-radius: 10px;
-            border: 1px dashed rgba(26,74,214,0.08);
-            pointer-events: none;
-        }
-
-        h3 {
-            margin-top: 0;
-            color: var(--accent);
-        }
-
-        input, select, button {
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 10px;
-            border: 1px solid rgba(16,38,96,0.18);
-            background: #f8f9ff;
-            color: var(--text);
-            box-sizing: border-box;
-            font-family: inherit;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(26,74,214,0.15);
-        }
-
-        button {
-            background: var(--primary);
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            color: #fff;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            margin-top: 12px;
-            border-radius: 12px;
-            letter-spacing: 0.2px;
-        }
-
-        button:hover {
-            background: var(--accent);
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(18,57,167,0.25);
-        }
-
-        .alert {
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            display: none;
-        }
-
-        .alert.success { background: rgba(34, 160, 107, 0.14); color: var(--success); border: 1px solid rgba(34,160,107,0.4); display: block; }
-        .alert.error { background: rgba(235, 77, 75, 0.12); color: var(--error); border: 1px solid rgba(235,77,75,0.4); display: block; }
-
-        pre {
-            background: #f0f2ff;
-            padding: 16px;
-            border-radius: 10px;
-            overflow-x: auto;
-            color: var(--accent);
-            font-size: 12px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .debug-panel {
-            background: linear-gradient(135deg, rgba(26,74,214,0.08), rgba(72,149,239,0.08));
-            border-radius: 16px;
-            padding: 24px;
-            border: 1px solid rgba(26,74,214,0.15);
-            margin-top: 10px;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
-        }
-
-        .debug-panel h4 {
-            margin: 0;
-            color: var(--accent);
-            font-size: 1rem;
-        }
-
-        .debug-chip {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--accent);
-            background: rgba(26,74,214,0.15);
-            padding: 4px 10px;
-            border-radius: 999px;
-        }
-
-        .debug-panel__header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .debug-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 18px;
-        }
-
-        .debug-field pre {
-            max-height: 150px;
-        }
-
-        .debug-label {
-            font-size: 12px;
-            color: var(--muted);
-            text-transform: uppercase;
-            margin: 0 0 6px;
-            letter-spacing: 0.5px;
-        }
-        
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: 999px;
-            font-size: 12px;
-            background: var(--success);
-            color: #fff;
-            letter-spacing: 0.3px;
-            box-shadow: 0 10px 25px rgba(34,160,107,0.35);
-        }
-        
-        #state-display {
-            font-size: 13px;
-            color: var(--muted);
-            margin-top: 30px;
-            text-align: center;
-            letter-spacing: 0.4px;
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--primary);
-            color: var(--primary);
-        }
-
-        .btn-outline:hover {
-            background: rgba(26,74,214,0.08);
-        }
-
-        .btn-danger {
-            background: var(--error);
-        }
-
-        .btn-danger:hover {
-            background: #c03636;
-        }
-
-        .btn-success {
-            background: var(--success);
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        #decrypted-result {
-            background: #f4f9ff;
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid rgba(26,74,214,0.15);
-        }
-
-        @media (max-width: 960px) {
-            .grid-2 {
-                grid-template-columns: 1fr;
-            }
-            body {
-                padding: 20px 14px 40px;
-            }
-            .container {
-                padding: 32px 22px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Paper Distribution</title>
+  <style>
+    :root {
+      --bg: #eef3ff;
+      --surface: rgba(255,255,255,0.88);
+      --surface-strong: #ffffff;
+      --primary: #173fcb;
+      --primary-2: #0f2f9b;
+      --accent: #6c5ce7;
+      --text: #16213e;
+      --muted: #6c7590;
+      --line: rgba(17, 35, 89, 0.12);
+      --shadow: 0 24px 80px rgba(18, 44, 110, 0.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(23,63,203,0.20), transparent 28%),
+        radial-gradient(circle at top right, rgba(108,92,231,0.16), transparent 28%),
+        linear-gradient(180deg, #f7f9ff 0%, #eef3ff 100%);
+    }
+    .wrap {
+      width: min(1240px, calc(100% - 32px));
+      margin: 28px auto;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-mark {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 24px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 16px 30px rgba(23, 63, 203, 0.22);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(23,63,203,0.08);
+      color: var(--primary-2);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 3.8vw, 4.2rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+    }
+    .lede {
+      margin-top: 14px;
+      max-width: 70ch;
+      color: var(--muted);
+      font-size: 1.04rem;
+      line-height: 1.7;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .chip {
+      border: 1px solid rgba(23,63,203,0.16);
+      background: rgba(23,63,203,0.06);
+      color: var(--primary-2);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 22px;
+      margin-top: 30px;
+    }
+    .hero-card {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 14px 36px rgba(11,28,72,0.08);
+    }
+    .hero-panel {
+      display: grid;
+      gap: 16px;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .metric {
+      background: linear-gradient(180deg, rgba(23,63,203,0.06), rgba(255,255,255,0.8));
+      border: 1px solid rgba(23,63,203,0.12);
+      border-radius: 18px;
+      padding: 18px;
+      min-height: 108px;
+    }
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .metric .value {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--primary-2);
+      line-height: 1;
+    }
+    .metric .desc {
+      color: var(--muted);
+      margin-top: 10px;
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+    .cards {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .portal-card {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 26px;
+      box-shadow: 0 16px 42px rgba(11,28,72,0.08);
+      position: relative;
+      overflow: hidden;
+    }
+    .portal-card::before {
+      content: "";
+      position: absolute;
+      inset: auto auto -30% -10%;
+      width: 220px;
+      height: 220px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(23,63,203,0.10), transparent 70%);
+      pointer-events: none;
+    }
+    .portal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .portal-title {
+      margin: 0;
+      font-size: 1.45rem;
+      color: var(--primary-2);
+    }
+    .portal-sub {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .portal-badge {
+      border-radius: 14px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary-2);
+      background: rgba(23,63,203,0.08);
+      border: 1px solid rgba(23,63,203,0.14);
+      white-space: nowrap;
+    }
+    .portal-list {
+      margin: 18px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+    }
+    .portal-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+    .portal-list li::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 0 0 4px rgba(23,63,203,0.08);
+      flex: 0 0 auto;
+    }
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 14px;
+      text-decoration: none;
+      font-weight: 800;
+      border: 1px solid transparent;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    a.button:hover { transform: translateY(-1px); }
+    .primary {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      box-shadow: 0 14px 24px rgba(23,63,203,0.22);
+    }
+    .secondary {
+      background: transparent;
+      color: var(--primary-2);
+      border-color: rgba(23,63,203,0.24);
+    }
+    .footer {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    @media (max-width: 980px) {
+      .hero,
+      .cards { grid-template-columns: 1fr; }
+      .wrap { padding: 18px; }
+      .metric-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-
-<div class="container">
-    <h1><span style="font-size:24px">🔐</span> Paper Distribution System</h1>
-    
-    <div class="tabs">
-        <button class="tab active" data-tab="admin" onclick="switchTab('admin')">Admin Panel</button>
-        <button class="tab" data-tab="center" onclick="switchTab('center')">Exam Center Panel</button>
-    </div>
-
-    <!-- ADMIN PANEL -->
-    <div id="admin-panel" class="panel active">
-        <div class="grid-2">
-            <!-- Admin Auth -->
-            <div class="card">
-                <h3>Admin Authentication</h3>
-                <div id="admin-alert" class="alert"></div>
-                
-                <div id="admin-login-form">
-                    <input type="text" id="admin-user" placeholder="Username (e.g. admin)">
-                    <input type="password" id="admin-pass" placeholder="Password">
-                    <div style="display:flex; gap:10px;">
-                        <button onclick="adminLogin()">Login</button>
-                        <button class="btn-outline" onclick="adminRegister()">Register</button>
-                    </div>
-                </div>
-                
-                <div id="admin-logged-in" style="display:none; text-align:center;">
-                    <div class="badge" style="margin:0 0 15px 0; background:var(--success)">Logged In as Admin</div>
-                    <div style="font-size:13px; margin-bottom:10px;">Your Admin Public Key:</div>
-                    <pre id="admin-public-key" style="max-height:80px;">Not loaded yet.</pre>
-                    <div style="font-size:13px; margin-bottom:10px;">Your Admin Private Key:</div>
-                    <pre id="admin-private-key" style="max-height:80px;">Not loaded yet.</pre>
-                    <button class="btn-danger" onclick="adminLogout()">Logout</button>
-                </div>
-            </div>
-
-            <!-- Upload File -->
-            <div class="card" id="upload-card" style="opacity:0.5; pointer-events:none;">
-                <h3>Upload Question Paper</h3>
-                <div id="upload-alert" class="alert"></div>
-                <input type="number" id="target-center-id" placeholder="Target Center ID">
-                <label style="font-size:12px; color:#aaa; margin-top:10px; display:block;">Release Date & Time</label>
-                <input type="datetime-local" id="release-time">
-                <input type="file" id="paper-file" accept=".pdf,.txt">
-                <button onclick="uploadPaper()">Encrypt & Upload</button>
-            </div>
-
-        </div> <!-- End grid-2 -->
-
-        <div id="upload-debug-info" class="debug-panel" style="display:none;">
-            <div class="debug-panel__header">
-                <h4>Encryption Debug Info</h4>
-                <span class="debug-chip">Developer View</span>
-            </div>
-            <div class="debug-grid">
-                <div class="debug-field">
-                    <p class="debug-label">AES Key (base64)</p>
-                    <pre id="aes-key-b64"></pre>
-                </div>
-                <div class="debug-field">
-                    <p class="debug-label">Encrypted AES Key</p>
-                    <pre id="encrypted-aes-key-b64"></pre>
-                </div>
-                <div class="debug-field">
-                    <p class="debug-label">Encrypted Paper (first 100 chars)</p>
-                    <pre id="encrypted-paper-b64"></pre>
-                </div>
-                <div class="debug-field">
-                    <p class="debug-label">SHA-256 Hash (hex)</p>
-                    <pre id="encrypted-paper-sha256"></pre>
-                </div>
-            </div>
+  <main class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">🔐</div>
+        <div>
+          <div class="eyebrow">Secure Paper Distribution</div>
+          <h1>Two role portals, one secure backend</h1>
         </div>
+      </div>
     </div>
 
-    <!-- CENTER PANEL -->
-    <div id="center-panel" class="panel">
-        <div class="grid-2">
-            <!-- Center Auth -->
-            <div class="card">
-                <h3>Center Authentication</h3>
-                <div id="center-alert" class="alert"></div>
-                
-                <div id="center-login-form">
-                    <input type="text" id="center-user" placeholder="Username (e.g. center1)">
-                    <input type="password" id="center-pass" placeholder="Password">
-                    <div style="display:flex; gap:10px;">
-                        <button onclick="centerLogin()">Login</button>
-                        <button class="btn-outline" onclick="centerRegister()">Register</button>
-                    </div>
-                </div>
-                
-                <div id="center-logged-in" style="display:none; text-align:left;">
-                    <div class="badge" style="margin:0 0 15px 0; background:var(--success)">Logged In as Center</div>
-                    <div style="font-size:13px; margin-bottom:10px;">Your Center ID: <strong id="my-center-id">-</strong></div>
-                    <div style="font-size:11px; color:#aaa; margin-bottom:5px;">Your Center Public Key:</div>
-                    <pre id="my-center-public-key" style="max-height:80px;">Not loaded yet.</pre>
-                    <div style="font-size:11px; color:#aaa; margin-bottom:5px;">Your RSA Private Key (Auto-saved in memory):</div>
-                    <pre id="my-private-key" style="max-height:80px;">Not generated yet.</pre>
-                    <button class="btn-danger" onclick="centerLogout()">Logout</button>
-                </div>
-            </div>
+    <p class="lede">
+      Run the admin portal on the machine that prepares and releases papers, and the center portal on the machine that receives and decrypts assigned papers. The backend stays the same, but each side sees only its own workflow.
+    </p>
 
-            <!-- Download File -->
-            <div class="card" id="download-card" style="opacity:0.5; pointer-events:none;">
-                <h3>Download & Decrypt</h3>
-                <div id="download-alert" class="alert"></div>
-                <input type="number" id="download-paper-id" placeholder="Enter Paper ID">
-                <button type="button" onclick="downloadAndDecrypt(event)" style="background:var(--accent)">Fetch & Decrypt Paper</button>
-                
-                <div id="decrypted-result" style="display:none; margin-top:20px;">
-                    <h4 style="color:#22a06b; margin:0 0 10px 0;">🎉 Decrypted Successfully!</h4>
-                    <button id="download-btn" class="btn-success">Save PDF to Disk</button>
-                </div>
-            </div>
+    <div class="meta-row">
+      <span class="chip">AES-256 + RSA</span>
+      <span class="chip">JWT Authentication</span>
+      <span class="chip">Watermark Forensics</span>
+      <span class="chip">Chain of Custody</span>
+      <span class="chip">Two-machine demo ready</span>
+    </div>
+
+    <section class="hero">
+      <div class="hero-card">
+        <div class="eyebrow">Demo Layout</div>
+        <h2 style="margin:0; font-size:1.9rem; color:var(--primary-2);">Open one portal per laptop</h2>
+        <p class="lede" style="margin-top:12px; max-width:none;">
+          This setup is ideal for class presentations because the admin machine handles uploading, dashboards, and forensics, while the center machine handles login, download, verification, and local decryption.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="admin.html">Open Admin Portal</a>
+          <a class="button secondary" href="center.html">Open Center Portal</a>
         </div>
+      </div>
+
+      <div class="hero-panel">
+        <div class="metric-grid">
+          <div class="metric">
+            <div class="label">Admin Side</div>
+            <div class="value">Upload</div>
+            <div class="desc">Release papers, inspect logs, and review forensic traces.</div>
+          </div>
+          <div class="metric">
+            <div class="label">Center Side</div>
+            <div class="value">Decrypt</div>
+            <div class="desc">Fetch only assigned papers and decrypt locally after verification.</div>
+          </div>
+          <div class="metric">
+            <div class="label">Security</div>
+            <div class="value">Trace</div>
+            <div class="desc">Watermark and audit data make leaks easier to investigate.</div>
+          </div>
+          <div class="metric">
+            <div class="label">Deployment</div>
+            <div class="value">Local / ngrok</div>
+            <div class="desc">Run on one laptop or expose the backend through a tunnel.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cards">
+      <article class="portal-card">
+        <div class="portal-head">
+          <div>
+            <h3 class="portal-title">Admin Portal</h3>
+            <p class="portal-sub">For the person preparing and releasing question papers.</p>
+          </div>
+          <div class="portal-badge">Admin only</div>
+        </div>
+        <ul class="portal-list">
+          <li>Login and register admin users</li>
+          <li>Upload and encrypt question papers</li>
+          <li>Inspect security dashboard and audit logs</li>
+          <li>Run watermark forensics and chain-of-custody checks</li>
+        </ul>
+        <div class="actions">
+          <a class="button primary" href="admin.html">Go to Admin Portal</a>
+        </div>
+      </article>
+
+      <article class="portal-card">
+        <div class="portal-head">
+          <div>
+            <h3 class="portal-title">Exam Center Portal</h3>
+            <p class="portal-sub">For the center that receives, verifies, and decrypts its assigned paper.</p>
+          </div>
+          <div class="portal-badge">Center only</div>
+        </div>
+        <ul class="portal-list">
+          <li>Login and register center users</li>
+          <li>Download only assigned papers after release time</li>
+          <li>Verify signatures before decryption</li>
+          <li>Save the decrypted PDF locally on the center machine</li>
+        </ul>
+        <div class="actions">
+          <a class="button secondary" href="center.html">Go to Center Portal</a>
+        </div>
+      </article>
+    </section>
+
+    <div class="footer">
+      <span>Backend API: http://127.0.0.1:5000</span>
+      <span>Use query param <strong>?api=</strong> for ngrok or LAN access</span>
     </div>
-    
-    <div id="state-display">System ready. Select a tab to begin.</div>
-</div>
-
-<script>
-    const API_URL = 'http://127.0.0.1:5000';
-    const DOWNLOAD_SESSION_PREFIX = 'paper_saved_session_';
-    const UI_STATE_STORAGE_KEY = 'paper_portal_ui_state_v1';
-    
-    // In-memory state for demo
-    let state = {
-        adminToken: null,
-        centerToken: null,
-        centerId: null,
-        centerPrivKey: null,
-        adminPubKey: null // Fetched automatically
-    };
-
-    function getActiveTabName() {
-        const activeTab = document.querySelector('.tab.active');
-        return activeTab ? activeTab.dataset.tab : 'admin';
-    }
-
-    function persistUiState(overrides = {}) {
-        const snapshot = {
-            adminToken: state.adminToken,
-            centerToken: state.centerToken,
-            centerId: state.centerId,
-            centerPrivKey: state.centerPrivKey,
-            adminPubKey: state.adminPubKey,
-            activeTab: overrides.activeTab || getActiveTabName(),
-            targetCenterId: document.getElementById('target-center-id').value,
-            releaseTime: document.getElementById('release-time').value,
-            downloadPaperId: document.getElementById('download-paper-id').value
-        };
-        localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(snapshot));
-    }
-
-    async function hydrateUiState() {
-        const raw = localStorage.getItem(UI_STATE_STORAGE_KEY);
-        if (!raw) return;
-        try {
-            const saved = JSON.parse(raw);
-            state.adminToken = saved.adminToken || null;
-            state.centerToken = saved.centerToken || null;
-            state.centerId = saved.centerId || null;
-            state.centerPrivKey = saved.centerPrivKey || null;
-            state.adminPubKey = saved.adminPubKey || null;
-            if (saved.targetCenterId) document.getElementById('target-center-id').value = saved.targetCenterId;
-            if (saved.releaseTime) document.getElementById('release-time').value = saved.releaseTime;
-            if (saved.downloadPaperId) document.getElementById('download-paper-id').value = saved.downloadPaperId;
-            switchTab(saved.activeTab || 'admin', { skipPersist: true });
-            if (state.adminToken) await applyAdminSession();
-            if (state.centerToken) await applyCenterSession();
-        } catch (error) {
-            console.warn('Failed to hydrate UI state', error);
-            localStorage.removeItem(UI_STATE_STORAGE_KEY);
-        }
-    }
-
-    async function applyAdminSession() {
-        document.getElementById('admin-login-form').style.display = 'none';
-        document.getElementById('admin-logged-in').style.display = 'block';
-        document.getElementById('upload-card').style.opacity = '1';
-        document.getElementById('upload-card').style.pointerEvents = 'auto';
-        await fetchAdminKeys();
-        persistUiState();
-    }
-
-    async function applyCenterSession() {
-        try {
-            const meRes = await fetch(`${API_URL}/auth/me`, { headers: {'Authorization': `Bearer ${state.centerToken}`} });
-            if (!meRes.ok) throw new Error('Token invalid');
-            const meData = await meRes.json();
-            state.centerId = meData.id;
-            document.getElementById('center-login-form').style.display = 'none';
-            document.getElementById('center-logged-in').style.display = 'block';
-            document.getElementById('my-center-id').innerText = state.centerId;
-            document.getElementById('my-center-public-key').innerText = meData.public_key || 'Not available';
-            if(state.centerPrivKey) {
-                document.getElementById('my-private-key').innerText = state.centerPrivKey.substring(0, 50) + '...\n[Hidden for Security]';
-            }
-            document.getElementById('download-card').style.opacity = '1';
-            document.getElementById('download-card').style.pointerEvents = 'auto';
-            persistUiState();
-        } catch (error) {
-            console.warn('Center session restore failed', error);
-            state.centerToken = null;
-            persistUiState();
-        }
-    }
-
-    function registerInputPersistence() {
-        ['target-center-id', 'release-time', 'download-paper-id'].forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.addEventListener('input', () => persistUiState());
-                element.addEventListener('change', () => persistUiState());
-            }
-        });
-    }
-
-    // Session-only download guards -----------------------------------------
-    function hasDownloadedThisSession(paperId) {
-        return sessionStorage.getItem(DOWNLOAD_SESSION_PREFIX + paperId) === 'true';
-    }
-
-    function markDownloadedThisSession(paperId) {
-        sessionStorage.setItem(DOWNLOAD_SESSION_PREFIX + paperId, 'true');
-    }
-
-    function disableDownloadButton(btn, label = 'Paper is locked') {
-        btn.disabled = true;
-        btn.style.opacity = '0.6';
-        btn.textContent = label;
-    }
-
-    function setupSingleDownloadButton(paperId, blobUrl, filename) {
-        const btn = document.getElementById('download-btn');
-        btn.disabled = false;
-        btn.style.opacity = '1';
-        btn.textContent = 'Save PDF to Disk';
-        btn.onclick = () => {
-            if (hasDownloadedThisSession(paperId)) {
-                disableDownloadButton(btn);
-                return showAlert('download-alert', 'error', 'Paper is locked for this browser session.');
-            }
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = filename || `decrypted_paper_${paperId}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            markDownloadedThisSession(paperId);
-            disableDownloadButton(btn);
-            showAlert('download-alert', 'success', 'Saved locally. Re-download blocked for this session.');
-        };
-    }
-
-    // UI Utilities
-    function switchTab(tab, options = {}) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-        const tabButton = document.querySelector(`.tab[data-tab="${tab}"]`) || document.querySelector('.tab[data-tab="admin"]');
-        tabButton.classList.add('active');
-        const panelTarget = document.getElementById(`${tab}-panel`);
-        if (panelTarget) panelTarget.classList.add('active');
-        if (!options.skipPersist) {
-            persistUiState({ activeTab: tab });
-        }
-    }
-
-    function showAlert(id, type, msg) {
-        const el = document.getElementById(id);
-        el.className = `alert ${type}`;
-        el.innerText = msg;
-        setTimeout(() => { el.style.display = 'none'; el.className = 'alert'; }, 5000);
-    }
-    
-    function logState(msg) {
-        document.getElementById('state-display').innerText = msg;
-    }
-
-    // --- ADMIN FUNCTIONS ---
-    async function adminRegister() {
-        const u = document.getElementById('admin-user').value;
-        const p = document.getElementById('admin-pass').value;
-        if(!u || !p) return showAlert('admin-alert', 'error', 'Need username and password');
-        
-        try {
-            const res = await fetch(`${API_URL}/auth/register`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p, email: `${u}@admin.com`, role: 'admin'})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                showAlert('admin-alert', 'success', 'Admin registered! Please login.');
-            } else {
-                showAlert('admin-alert', 'error', data.message || 'Registration failed');
-            }
-        } catch(e) { showAlert('admin-alert', 'error', 'Network error'); }
-    }
-
-    async function fetchAdminKeys() {
-        if(!state.adminToken) return;
-        const res = await fetch(`${API_URL}/auth/me`, {
-            headers: {'Authorization': `Bearer ${state.adminToken}`}
-        });
-        if(res.ok) {
-            const data = await res.json();
-            state.adminPubKey = data.public_key;
-            document.getElementById('admin-public-key').innerText = data.public_key || 'Not available';
-            if (data.private_key) {
-                document.getElementById('admin-private-key').innerText = data.private_key.substring(0, 50) + '...\n[Hidden for Security]';
-            } else {
-                document.getElementById('admin-private-key').innerText = 'Not available';
-            }
-            persistUiState();
-        } else {
-            console.warn('Admin session invalid, logging out');
-            adminLogout();
-        }
-    }
-
-    async function adminLogin() {
-        const u = document.getElementById('admin-user').value;
-        const p = document.getElementById('admin-pass').value;
-        if(!u || !p) return showAlert('admin-alert', 'error', 'Need username and password');
-        
-        try {
-            const res = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(res.ok && data.role === 'admin') {
-                state.adminToken = data.token;
-                showAlert('admin-alert', 'success', 'Login successful!');
-                await applyAdminSession();
-            } else {
-                showAlert('admin-alert', 'error', data.message || 'Invalid admin credentials');
-            }
-        } catch(e) { showAlert('admin-alert', 'error', 'Network error'); }
-    }
-    
-    function adminLogout() {
-        state.adminToken = null;
-        state.adminPubKey = null;
-        document.getElementById('admin-login-form').style.display = 'block';
-        document.getElementById('admin-logged-in').style.display = 'none';
-        document.getElementById('upload-card').style.opacity = '0.5';
-        document.getElementById('upload-card').style.pointerEvents = 'none';
-        document.getElementById('admin-public-key').innerText = 'Not loaded yet.';
-        document.getElementById('admin-private-key').innerText = 'Not loaded yet.';
-        persistUiState();
-    }
-
-    async function uploadPaper() {
-        const cid = document.getElementById('target-center-id').value;
-        const rt = document.getElementById('release-time').value;
-        const fileInput = document.getElementById('paper-file');
-        if(!cid || !rt || !fileInput.files.length) {
-            return showAlert('upload-alert', 'error', 'Fill all fields and select a file.');
-        }
-        const formData = new FormData();
-        formData.append('center_id', cid);
-        let isoTime = new Date(rt).toISOString();
-        formData.append('release_time', isoTime);
-        formData.append('file', fileInput.files[0]);
-        try {
-            showAlert('upload-alert', 'success', 'Encrypting and uploading...');
-            const res = await fetch(`${API_URL}/admin/upload`, {
-                method: 'POST',
-                headers: {'Authorization': `Bearer ${state.adminToken}`},
-                body: formData
-            });
-            const data = await res.json();
-            console.log('[DEBUG] Upload response:', data);
-            if(res.ok) {
-                showAlert('upload-alert', 'success', `Success! Paper ID is ${data.paper_id}`);
-                document.getElementById('download-paper-id').value = data.paper_id;
-                document.getElementById('upload-debug-info').style.display = 'block';
-                document.getElementById('aes-key-b64').innerText = data.aes_key_b64 || '';
-                document.getElementById('encrypted-aes-key-b64').innerText = data.encrypted_aes_key_b64 || '';
-                document.getElementById('encrypted-paper-b64').innerText = (data.encrypted_paper_b64 || '').substring(0, 100) + '...';
-                document.getElementById('encrypted-paper-sha256').innerText = data.encrypted_paper_sha256 || '';
-                console.log('[DEBUG] Debug info section shown');
-            } else {
-                showAlert('upload-alert', 'error', data.error || 'Upload failed');
-                document.getElementById('upload-debug-info').style.display = 'none';
-                console.log('[DEBUG] Debug info section hidden (error branch)');
-            }
-        } catch(e) {
-            showAlert('upload-alert', 'error', 'Network error');
-            document.getElementById('upload-debug-info').style.display = 'none';
-            console.log('[DEBUG] Debug info section hidden (catch branch)', e);
-        }
-    }
-
-    // --- CENTER FUNCTIONS ---
-    async function centerRegister() {
-        const u = document.getElementById('center-user').value;
-        const p = document.getElementById('center-pass').value;
-        if(!u || !p) return showAlert('center-alert', 'error', 'Need username and password');
-        
-        try {
-            showAlert('center-alert', 'success', 'Generating RSA keys...');
-            const res = await fetch(`${API_URL}/auth/register`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p, email: `${u}@center.com`, role: 'center'})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                showAlert('center-alert', 'success', 'Registered! Keys generated. Please login.');
-                // For demo, we just captured it immediately on register so we don't lose it
-                state.centerId = data.id;
-                state.centerPrivKey = data.private_key;
-                
-                // Save to localStorage so user can login again later
-                localStorage.setItem(`center_priv_key_${u}`, data.private_key);
-                
-                // Pre-fill Admin's target Center ID input for convenience
-                document.getElementById('target-center-id').value = data.id;
-                persistUiState();
-            } else {
-                showAlert('center-alert', 'error', data.message || 'Registration failed');
-            }
-        } catch(e) { showAlert('center-alert', 'error', 'Network error'); }
-    }
-
-    async function centerLogin() {
-        const u = document.getElementById('center-user').value;
-        const p = document.getElementById('center-pass').value;
-        if(!u || !p) return showAlert('center-alert', 'error', 'Need username and password');
-        
-        try {
-            const res = await fetch(`${API_URL}/auth/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(res.ok && data.role === 'center') {
-                state.centerToken = data.token;
-                const storedPrivKey = localStorage.getItem(`center_priv_key_${u}`);
-                if (storedPrivKey && !state.centerPrivKey) {
-                    state.centerPrivKey = storedPrivKey;
-                }
-                await applyCenterSession();
-                showAlert('center-alert', 'success', 'Login successful!');
-            } else {
-                showAlert('center-alert', 'error', data.message || 'Invalid center credentials');
-            }
-        } catch(e) { showAlert('center-alert', 'error', 'Network error'); }
-    }
-    
-    function centerLogout() {
-        state.centerToken = null;
-        state.centerId = null;
-        document.getElementById('center-login-form').style.display = 'block';
-        document.getElementById('center-logged-in').style.display = 'none';
-        document.getElementById('download-card').style.opacity = '0.5';
-        document.getElementById('download-card').style.pointerEvents = 'none';
-        document.getElementById('decrypted-result').style.display = 'none';
-        document.getElementById('my-center-id').innerText = '-';
-        document.getElementById('my-center-public-key').innerText = 'Not loaded yet.';
-        document.getElementById('my-private-key').innerText = 'Not generated yet.';
-        persistUiState();
-    }
-
-    async function downloadAndDecrypt(evt) {
-        if (evt) {
-            evt.preventDefault();
-            evt.stopPropagation();
-        }
-        const pid = document.getElementById('download-paper-id').value;
-        if(!pid) return showAlert('download-alert', 'error', 'Enter a Paper ID');
-        if(hasDownloadedThisSession(pid)) {
-            return showAlert('download-alert', 'error', 'Paper already saved in this browser session.');
-        }
-        if(!state.centerPrivKey) return showAlert('download-alert', 'error', 'No private key available. Did you register in this session?');
-        if(!state.adminPubKey) {
-            // Try to fetch if not available
-            logState("Warning: Admin public key not cached. Attempting to fetch...");
-            await fetchAdminKeys();
-            if(!state.adminPubKey) {
-               return showAlert('download-alert', 'error', 'Cannot verify signature without Admin public key. Please login Admin first in this session.');
-            }
-        }
-
-        try {
-            showAlert('download-alert', 'success', 'Requesting encrypted package...');
-            document.getElementById('decrypted-result').style.display = 'none';
-            
-            // 1. Download
-            const fetchRes = await fetch(`${API_URL}/center/download/${pid}`, {
-                headers: {'Authorization': `Bearer ${state.centerToken}`}
-            });
-            const fetchData = await fetchRes.json();
-            
-            if(!fetchRes.ok) {
-                return showAlert('download-alert', 'error', fetchData.error || 'Download denied');
-            }
-            
-            showAlert('download-alert', 'success', 'Package received! Decrypting locally...');
-            logState(`Downloaded payload: ${fetchData.encrypted_blob.substring(0,20)}...`);
-
-            // 2. Decrypt
-            const decryptPayload = {
-                encrypted_blob: fetchData.encrypted_blob,
-                wrapped_aes_key: fetchData.wrapped_aes_key,
-                signature: fetchData.signature,
-                center_private_key: state.centerPrivKey,
-                admin_public_key: state.adminPubKey,
-                paper_id: Number(pid)
-            };
-
-            const decRes = await fetch(`${API_URL}/center/decrypt`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(decryptPayload)
-            });
-
-            if(!decRes.ok) {
-                 const decErr = await decRes.json();
-                 return showAlert('download-alert', 'error', `Decryption failed: ${decErr.error}`);
-            }
-
-            // 3. Success! Get the Blob and show Download button
-            const blob = await decRes.blob();
-            const url = window.URL.createObjectURL(blob);
-            setupSingleDownloadButton(pid, url, fetchData.filename || 'decrypted_paper.pdf');
-            
-            document.getElementById('decrypted-result').style.display = 'block';
-            showAlert('download-alert', 'success', 'Decryption and Signature Verification successful!');
-            persistUiState();
-            
-        } catch(e) { 
-            console.error(e);
-            showAlert('download-alert', 'error', 'Network or Cryptography error'); 
-        }
-    }
-    
-    async function initializeApp() {
-        document.getElementById('release-time').value = new Date().toISOString().slice(0, 16);
-        registerInputPersistence();
-        await hydrateUiState();
-        persistUiState();
-    }
-
-    initializeApp();
-</script>
-
+  </main>
 </body>
 </html>

@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exam Center Portal</title>
+  <style>
+    :root {
+      --bg: #eef3ff;
+      --surface: rgba(255,255,255,0.88);
+      --surface-strong: #ffffff;
+      --primary: #173fcb;
+      --primary-2: #0f2f9b;
+      --accent: #6c5ce7;
+      --text: #16213e;
+      --muted: #6c7590;
+      --line: rgba(17, 35, 89, 0.12);
+      --shadow: 0 24px 80px rgba(18, 44, 110, 0.14);
+      --success: #22a06b;
+      --error: #eb4d4b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(23,63,203,0.20), transparent 28%),
+        radial-gradient(circle at top right, rgba(108,92,231,0.16), transparent 28%),
+        linear-gradient(180deg, #f7f9ff 0%, #eef3ff 100%);
+      padding: 24px;
+    }
+    .shell {
+      width: min(1540px, 100%);
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 23px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 16px 30px rgba(23, 63, 203, 0.22);
+      flex: 0 0 auto;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(23,63,203,0.08);
+      color: var(--primary-2);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    h1, h2, h3, h4 { margin: 0; }
+    h1 { color: var(--primary-2); font-size: clamp(2rem, 3vw, 2.8rem); letter-spacing: -0.04em; }
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 74ch;
+    }
+    .pill-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      color: var(--primary-2);
+      border: 1px solid rgba(23,63,203,0.18);
+      background: rgba(23,63,203,0.06);
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .sidebar {
+      position: sticky;
+      top: 20px;
+      display: grid;
+      gap: 14px;
+      align-self: start;
+    }
+    .sidebar-card,
+    .page-card,
+    .sub-card {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 14px 36px rgba(11,28,72,0.08);
+    }
+    .sidebar-card { padding: 16px; }
+    .sidebar-title {
+      color: var(--primary-2);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+    .nav-list {
+      display: grid;
+      gap: 10px;
+    }
+    .nav-btn {
+      width: 100%;
+      border: 1px solid rgba(23,63,203,0.12);
+      background: rgba(23,63,203,0.04);
+      color: var(--primary-2);
+      padding: 12px 14px;
+      border-radius: 16px;
+      text-align: left;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .nav-btn.active {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 12px 24px rgba(23,63,203,0.20);
+    }
+    .pages {
+      display: grid;
+      gap: 18px;
+    }
+    .page-card {
+      padding: 22px;
+      display: none;
+    }
+    .page-card.active { display: block; }
+    .page-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .page-head p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: rgba(34,160,107,0.12);
+      color: var(--success);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      background: var(--surface-strong);
+      border: 1px solid rgba(23,63,203,0.10);
+      border-radius: 22px;
+      padding: 20px;
+    }
+    .card h3 { color: var(--primary-2); margin-bottom: 10px; }
+    .card p { color: var(--muted); line-height: 1.55; margin: 0; }
+    input, button {
+      width: 100%;
+      padding: 12px 13px;
+      margin: 8px 0;
+      border-radius: 12px;
+      border: 1px solid rgba(16,38,96,0.18);
+      background: #f8f9ff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: rgba(23,63,203,0.55);
+      box-shadow: 0 0 0 3px rgba(23,63,203,0.12);
+    }
+    button {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border: none;
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.03); }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-2);
+      border: 1px solid rgba(23,63,203,0.26);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #eb4d4b, #c73634);
+    }
+    .btn-success {
+      background: linear-gradient(135deg, #22a06b, #18824e);
+    }
+    .alert {
+      padding: 10px 12px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .alert.success { display:block; background: rgba(34,160,107,0.14); color: var(--success); border: 1px solid rgba(34,160,107,0.4); }
+    .alert.error { display:block; background: rgba(235,77,75,0.12); color: var(--error); border: 1px solid rgba(235,77,75,0.4); }
+    pre {
+      margin: 0;
+      background: linear-gradient(180deg, #f6f8ff, #edf2ff);
+      padding: 14px;
+      border-radius: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      color: var(--primary-2);
+      font-size: 12px;
+      max-height: 240px;
+      border: 1px solid rgba(23,63,203,0.08);
+    }
+    .section {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.76);
+      border: 1px solid rgba(23,63,203,0.10);
+    }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .section-head h3 { color: var(--primary-2); }
+    .section-head span {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .debug-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .debug-label { font-size: 12px; color: var(--muted); text-transform: uppercase; margin: 0 0 6px; letter-spacing: 0.5px; }
+    .step-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .step-item {
+      border: 1px solid rgba(23,63,203,0.12);
+      background: rgba(23,63,203,0.04);
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .step-item strong { display:block; color: var(--primary-2); margin-bottom: 4px; }
+    .step-item span { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+    @media (max-width: 1180px) {
+      .workspace { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+    }
+    @media (max-width: 980px) {
+      .grid-2,
+      .grid-3,
+      .hero-grid,
+      .split { grid-template-columns: 1fr; }
+      .shell { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">🏫</div>
+        <div>
+          <div class="eyebrow">Exam Center Control Center</div>
+          <h1>Secure Center Dashboard</h1>
+          <div class="subtitle">Login, receive only your assigned paper, verify it, and decrypt it locally on this machine.</div>
+        </div>
+      </div>
+      <a class="pill-link" href="index.html">Back to landing page</a>
+    </div>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-card">
+          <div class="sidebar-title">Pages</div>
+          <div class="nav-list">
+            <button class="nav-btn active" data-page="page-account" onclick="showCenterPage('page-account')">Account</button>
+            <button class="nav-btn" data-page="page-download" onclick="showCenterPage('page-download')">Download</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="main">
+        <div class="pages">
+          <article id="page-account" class="page-card active">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Account</div>
+                <h2>Center Authentication</h2>
+                <p>Login or register on this machine to generate and store the private key.</p>
+              </div>
+              <div class="badge">Center only</div>
+            </div>
+            <div class="grid-2">
+              <div class="card">
+                <div id="center-alert" class="alert"></div>
+                <div id="center-login-form">
+                  <input type="text" id="center-user" placeholder="Username">
+                  <input type="password" id="center-pass" placeholder="Password">
+                  <div style="display:flex; gap:10px;">
+                    <button onclick="centerLogin()">Login</button>
+                    <button class="btn-outline" onclick="centerRegister()">Register</button>
+                  </div>
+                </div>
+                <div id="center-logged-in" style="display:none; text-align:left;">
+                  <div class="badge" style="margin-bottom:14px;">Logged In as Center</div>
+                  <div style="font-size:13px; margin-bottom:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Center ID</div>
+                  <div style="font-size:16px; font-weight:800; color:var(--primary-2); margin-bottom:14px;" id="my-center-id">-</div>
+                  <div style="font-size:13px; margin-bottom:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Center Public Key</div>
+                  <pre id="my-center-public-key">Not loaded yet.</pre>
+                  <div style="font-size:13px; margin:14px 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">RSA Private Key</div>
+                  <pre id="my-private-key">Not generated yet.</pre>
+                  <button class="btn-danger" onclick="centerLogout()">Logout</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>How this page works</h3>
+                <div class="step-list" style="margin-top:12px;">
+                  <div class="step-item"><strong>Step 1</strong><span>Login or register the center account on this portal.</span></div>
+                  <div class="step-item"><strong>Step 2</strong><span>Move to the Download page from the sidebar.</span></div>
+                  <div class="step-item"><strong>Step 3</strong><span>Use the same session while moving across pages.</span></div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article id="page-download" class="page-card">
+            <div class="page-head">
+              <div>
+                <div class="eyebrow">Download</div>
+                <h2>Download & Decrypt</h2>
+                <p>Fetch the paper, verify it, and save the decrypted PDF.</p>
+              </div>
+              <div class="badge" style="background: rgba(23,63,203,0.10); color: var(--primary-2);">Local decrypt</div>
+            </div>
+            <div class="grid-2">
+              <div class="card" id="download-card" style="opacity:0.5; pointer-events:none;">
+                <div id="download-alert" class="alert"></div>
+                <div style="font-size:13px; margin-bottom:6px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Assigned Paper</div>
+                <div id="assigned-paper-label" style="font-size:16px; font-weight:800; color:var(--primary-2); margin-bottom:6px;">No assigned paper yet</div>
+                <input type="number" id="download-paper-id" placeholder="Enter Paper ID">
+                <button type="button" onclick="downloadAndDecrypt(event)" style="background:linear-gradient(135deg, var(--accent), var(--primary));">Fetch & Decrypt Paper</button>
+                <div id="decrypted-result" style="display:none; margin-top:16px;">
+                  <div class="badge" style="margin-bottom:10px; background: rgba(34,160,107,0.14); color: var(--success);">Decrypted Successfully</div>
+                  <button id="download-btn" class="btn-success">Save PDF to Disk</button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>Secure Workflow</h3>
+                <div class="step-list" style="margin-top:12px;">
+                  <div class="step-item"><strong>1. Login</strong><span>Authenticate using your center account on this machine.</span></div>
+                  <div class="step-item"><strong>2. Enter Paper ID</strong><span>Paste the paper ID assigned by the admin side.</span></div>
+                  <div class="step-item"><strong>3. Verify</strong><span>The app validates signature and time-lock before decryption.</span></div>
+                  <div class="step-item"><strong>4. Save locally</strong><span>The decrypted PDF is stored on the center laptop only.</span></div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const API_URL = new URLSearchParams(window.location.search).get('api') || localStorage.getItem('paper_api_url') || 'http://127.0.0.1:5000';
+    const DOWNLOAD_SESSION_PREFIX = 'paper_saved_session_';
+    const UI_STATE_STORAGE_KEY = 'paper_center_ui_state_v1';
+    let state = { centerToken: null, centerId: null, centerPrivKey: null, adminPubKey: null };
+
+    if (API_URL) {
+      localStorage.setItem('paper_api_url', API_URL);
+    }
+
+    function showAlert(id, type, msg) {
+      const el = document.getElementById(id);
+      el.className = `alert ${type}`;
+      el.innerText = msg;
+      setTimeout(() => { el.style.display = 'none'; el.className = 'alert'; }, 5000);
+    }
+
+    function showCenterPage(pageId) {
+      document.querySelectorAll('.page-card').forEach(card => card.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(button => button.classList.remove('active'));
+      const activePage = document.getElementById(pageId);
+      const activeButton = document.querySelector(`.nav-btn[data-page="${pageId}"]`);
+      if (activePage) activePage.classList.add('active');
+      if (activeButton) activeButton.classList.add('active');
+    }
+
+    function persistUiState() {
+      localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify({
+        centerToken: state.centerToken,
+        centerId: state.centerId,
+        centerPrivKey: state.centerPrivKey,
+        downloadPaperId: document.getElementById('download-paper-id').value
+      }));
+    }
+
+    async function hydrateUiState() {
+      const raw = localStorage.getItem(UI_STATE_STORAGE_KEY);
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw);
+        state.centerToken = saved.centerToken || null;
+        state.centerId = saved.centerId || null;
+        state.centerPrivKey = saved.centerPrivKey || null;
+        if (saved.downloadPaperId) document.getElementById('download-paper-id').value = saved.downloadPaperId;
+        if (state.centerToken) await applyCenterSession();
+      } catch (error) {
+        localStorage.removeItem(UI_STATE_STORAGE_KEY);
+      }
+    }
+
+    async function applyCenterSession() {
+      const meRes = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${state.centerToken}` } });
+      if (!meRes.ok) {
+        centerLogout();
+        return;
+      }
+      const meData = await meRes.json();
+      state.centerId = meData.id;
+      document.getElementById('center-login-form').style.display = 'none';
+      document.getElementById('center-logged-in').style.display = 'block';
+      document.getElementById('my-center-id').innerText = state.centerId;
+      document.getElementById('my-center-public-key').innerText = meData.public_key || 'Not available';
+      document.getElementById('my-private-key').innerText = state.centerPrivKey ? `${state.centerPrivKey.substring(0, 50)}...\n[Hidden for Security]` : 'Not generated yet.';
+      document.getElementById('download-card').style.opacity = '1';
+      document.getElementById('download-card').style.pointerEvents = 'auto';
+      await fetchAssignedPaper();
+      persistUiState();
+    }
+
+    async function fetchAssignedPaper() {
+      if (!state.centerToken) return;
+      const paperIdInput = document.getElementById('download-paper-id');
+      const res = await fetch(`${API_URL}/center/assigned-paper`, {
+        headers: { 'Authorization': `Bearer ${state.centerToken}` }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showAlert('download-alert', 'error', data.error || 'Unable to load assigned paper');
+        return;
+      }
+
+      if (data.paper_id) {
+        paperIdInput.value = data.paper_id;
+        paperIdInput.placeholder = `Assigned Paper ID: ${data.paper_id}`;
+        document.getElementById('assigned-paper-label').innerText = `Paper #${data.paper_id}${data.status ? ` • ${data.status}` : ''}`;
+      } else {
+        paperIdInput.value = '';
+        paperIdInput.placeholder = 'No assigned paper yet';
+        document.getElementById('assigned-paper-label').innerText = 'No assigned paper yet';
+      }
+      persistUiState();
+    }
+
+    async function centerRegister() {
+      const u = document.getElementById('center-user').value;
+      const p = document.getElementById('center-pass').value;
+      if (!u || !p) return showAlert('center-alert', 'error', 'Need username and password');
+      showAlert('center-alert', 'success', 'Generating RSA keys...');
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p, email: `${u}@center.com`, role: 'center' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        state.centerId = data.id;
+        state.centerPrivKey = data.private_key;
+        localStorage.setItem(`center_priv_key_${u}`, data.private_key);
+        document.getElementById('download-paper-id').value = '';
+        showAlert('center-alert', 'success', 'Registered! Save the private key on this machine, then login.');
+        persistUiState();
+      } else {
+        showAlert('center-alert', 'error', data.message || 'Registration failed');
+      }
+    }
+
+    async function centerLogin() {
+      const u = document.getElementById('center-user').value;
+      const p = document.getElementById('center-pass').value;
+      if (!u || !p) return showAlert('center-alert', 'error', 'Need username and password');
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json();
+      if (res.ok && data.role === 'center') {
+        state.centerToken = data.token;
+        const storedPrivKey = localStorage.getItem(`center_priv_key_${u}`);
+        if (storedPrivKey && !state.centerPrivKey) state.centerPrivKey = storedPrivKey;
+        await applyCenterSession();
+        showAlert('center-alert', 'success', 'Login successful!');
+      } else {
+        showAlert('center-alert', 'error', data.message || 'Invalid center credentials');
+      }
+    }
+
+    function centerLogout() {
+      state.centerToken = null;
+      state.centerId = null;
+      document.getElementById('center-login-form').style.display = 'block';
+      document.getElementById('center-logged-in').style.display = 'none';
+      document.getElementById('download-card').style.opacity = '0.5';
+      document.getElementById('download-card').style.pointerEvents = 'none';
+      document.getElementById('decrypted-result').style.display = 'none';
+      document.getElementById('my-center-id').innerText = '-';
+      document.getElementById('my-center-public-key').innerText = 'Not loaded yet.';
+      document.getElementById('my-private-key').innerText = 'Not generated yet.';
+      persistUiState();
+    }
+
+    function hasDownloadedThisSession(paperId) {
+      return sessionStorage.getItem(DOWNLOAD_SESSION_PREFIX + paperId) === 'true';
+    }
+    function markDownloadedThisSession(paperId) {
+      sessionStorage.setItem(DOWNLOAD_SESSION_PREFIX + paperId, 'true');
+    }
+    function disableDownloadButton(btn, label = 'Paper is locked') {
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.textContent = label;
+    }
+    function setupSingleDownloadButton(paperId, blobUrl, filename) {
+      const btn = document.getElementById('download-btn');
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.textContent = 'Save PDF to Disk';
+      btn.onclick = () => {
+        if (hasDownloadedThisSession(paperId)) {
+          disableDownloadButton(btn);
+          return showAlert('download-alert', 'error', 'Paper is locked for this browser session.');
+        }
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename || `decrypted_paper_${paperId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        markDownloadedThisSession(paperId);
+        disableDownloadButton(btn);
+        showAlert('download-alert', 'success', 'Saved locally. Re-download blocked for this session.');
+      };
+    }
+
+    async function downloadAndDecrypt(evt) {
+      if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+      const pid = document.getElementById('download-paper-id').value;
+      if (!pid) return showAlert('download-alert', 'error', 'Enter a Paper ID');
+      if (hasDownloadedThisSession(pid)) return showAlert('download-alert', 'error', 'Paper already saved in this browser session.');
+      if (!state.centerPrivKey) return showAlert('download-alert', 'error', 'No private key available. Register on this machine first.');
+
+      const fetchRes = await fetch(`${API_URL}/center/download/${pid}`, { headers: { 'Authorization': `Bearer ${state.centerToken}` } });
+      const fetchData = await fetchRes.json();
+      if (!fetchRes.ok) return showAlert('download-alert', 'error', fetchData.error || 'Download denied');
+
+      const decryptPayload = {
+        encrypted_blob: fetchData.encrypted_blob,
+        wrapped_aes_key: fetchData.wrapped_aes_key,
+        signature: fetchData.signature,
+        center_private_key: state.centerPrivKey,
+        admin_public_key: (await getAdminPublicKey()) || state.adminPubKey,
+        paper_id: Number(pid)
+      };
+
+      const decRes = await fetch(`${API_URL}/center/decrypt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(decryptPayload)
+      });
+      if (!decRes.ok) {
+        const decErr = await decRes.json();
+        return showAlert('download-alert', 'error', `Decryption failed: ${decErr.error}`);
+      }
+
+      const blob = await decRes.blob();
+      const url = window.URL.createObjectURL(blob);
+      setupSingleDownloadButton(pid, url, fetchData.filename || 'decrypted_paper.pdf');
+      document.getElementById('decrypted-result').style.display = 'block';
+      showAlert('download-alert', 'success', 'Decryption and Signature Verification successful!');
+      persistUiState();
+    }
+
+    async function getAdminPublicKey() {
+      if (!state.adminPubKey) {
+        const meRes = await fetch(`${API_URL}/auth/admin-public-key`);
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          state.adminPubKey = meData.public_key || null;
+        }
+      }
+      return state.adminPubKey;
+    }
+
+    document.getElementById('download-paper-id').addEventListener('input', persistUiState);
+    hydrateUiState();
+  </script>
+</body>
+</html>

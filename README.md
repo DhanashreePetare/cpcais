@@ -22,6 +22,18 @@ Papers are strictly time-bound. When an Admin uploads a paper, they specify a `r
 *   **Centers:** Can securely download, verify, and decrypt their assigned papers. 
 *   **JWT Tokens:** All API endpoints are protected via PyJWT tokens, meaning users must authenticate with their credentials to perform any action.
 
+### 5. 🖥️ Separate Portals for Realistic Deployment
+*   **Landing Page:** A simple start page routes users to the correct role-specific portal.
+*   **Admin Portal:** Dedicated page for admin login, upload, dashboards, forensics, and chain-of-custody.
+*   **Center Portal:** Dedicated page for center login, assigned-paper download, signature verification, and local decryption.
+*   **Separate-Machine Friendly:** Each portal can be opened on a different machine without sharing the same UI state.
+
+### 6. 🧭 Security Dashboard, Watermark Forensics, and Chain of Custody
+*   **Admin Security Dashboard:** A live view of recent audit logs, paper counts, release status, and suspicious events.
+*   **Watermark Forensics:** Upload a suspected leak and inspect the embedded watermark / fingerprint for traceability.
+*   **Chain of Custody Timeline:** Review the lifecycle of a paper from creation and release scheduling to download and decrypt events.
+*   **Suspicious Activity Logging:** Early downloads, unauthorized access, missing files, and failed signatures are recorded in the audit log.
+
 ---
 
 ## 🏗️ System Architecture & Workflow
@@ -32,8 +44,8 @@ The architecture relies on a **Flask backend API** and a **SQLite Database (SQLA
 1.  **Preparation phase:** Both the Admin and the Exam Centers are generated RSA Keypairs (Public/Private).
 2.  **Upload & Encrypt (Admin):** 
     *   The admin uploads a PDF.
-    *   The server generates an AES-256 key, encrypts the PDF, and wraps the AES key with the Center's Public Key.
-    *   The server signs the encrypted data block with the Admin's Private Key.
+    *   The server generates an AES-256 key, embeds a per-center watermark fingerprint, encrypts the PDF, and wraps the AES key with the Center's Public Key.
+    *   The server signs the encrypted data block with the Admin's Private Key and stores an audit trail.
 3.  **Storage:** The encrypted `.enc` file is securely saved on disk in the `/uploads` directory, alongside metadata in the SQLite database.
 4.  **Download & Verify (Center):**
     *   Once the `release_time` is reached, the Center downloads the encrypted blob, the signature, and their wrapped AES key.
@@ -41,6 +53,9 @@ The architecture relies on a **Flask backend API** and a **SQLite Database (SQLA
 5.  **Decrypt (Center):** 
     *   The AES key is unwrapped using the Center's Private Key.
     *   The original PDF is decrypted and served as a file download.
+6.  **Forensics & Auditing:**
+    *   The admin can inspect a leaked PDF to recover the watermark trace.
+    *   The admin can review a paper's timeline to see upload, release, download, and security events.
 
 ---
 

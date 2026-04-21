@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from config import Config
 from models import db
@@ -25,9 +25,21 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(center_bp, url_prefix='/center')
 
+    @app.route('/index.html')
+    def landing_page():
+        return send_from_directory(app.root_path, 'index.html')
+
+    @app.route('/admin.html')
+    def admin_page():
+        return send_from_directory(app.root_path, 'admin.html')
+
+    @app.route('/center.html')
+    def center_page():
+        return send_from_directory(app.root_path, 'center.html')
+
     @app.route('/')
     def index():
-        return jsonify({"status": "Secure Question Paper Distribution API is running"}), 200
+        return send_from_directory(app.root_path, 'index.html')
 
     @app.errorhandler(413)
     def request_entity_too_large(error):
@@ -56,4 +68,4 @@ if __name__ == '__main__':
     app = create_app()
     with app.app_context():
         db.create_all()
-    app.run(debug=False, use_reloader=False, port=5000)
+    app.run(debug=False, use_reloader=False, host='0.0.0.0', port=5000)

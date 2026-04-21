@@ -115,3 +115,30 @@ def me(current_user):
         'role': current_user.role,
         'public_key': current_user.public_key
     })
+
+
+@auth_bp.route('/admin-public-key', methods=['GET'])
+def admin_public_key():
+    admin = User.query.filter_by(role='admin').order_by(User.id.asc()).first()
+    if not admin or not admin.public_key:
+        return jsonify({'error': 'Admin public key not available'}), 404
+    return jsonify({
+        'admin_id': admin.id,
+        'public_key': admin.public_key
+    })
+
+
+@auth_bp.route('/centers', methods=['GET'])
+@token_required(role='admin')
+def list_centers(current_user):
+    centers = User.query.filter_by(role='center').order_by(User.id.asc()).all()
+    return jsonify({
+        'centers': [
+            {
+                'id': center.id,
+                'username': center.username,
+                'email': center.email,
+            }
+            for center in centers
+        ]
+    })

@@ -10,20 +10,77 @@ from watermark_utils import generate_boneh_shaw_fingerprint, embed_watermark_tex
 
 center_bp = Blueprint('center', __name__)
 
+
+def _get_admin_public_key_for_paper(paper_id):
+    encrypt_log = AuditLog.query.filter(
+        AuditLog.action == 'encrypt',
+        AuditLog.details.like(f"%paper_id={paper_id}%")
+    ).order_by(AuditLog.timestamp.asc()).first()
+    if not encrypt_log or not encrypt_log.user_id:
+        return None
+
+    admin = User.query.get(encrypt_log.user_id)
+    if not admin or not admin.public_key:
+        return None
+    return admin.public_key
+
+
+@center_bp.route('/assigned-paper', methods=['GET'])
+@token_required(role='center')
+def assigned_paper(current_user):
+    paper = Paper.query.filter_by(center_id=current_user.id).order_by(Paper.created_at.desc()).first()
+    if not paper:
+        return jsonify({'paper_id': None, 'filename': None, 'release_time': None}), 200
+
+    admin_public_key = _get_admin_public_key_for_paper(paper.id)
+
+    return jsonify({
+        'paper_id': paper.id,
+        'filename': paper.filename,
+        'release_time': paper.release_time.isoformat() if paper.release_time else None,
+        'status': 'released' if paper.release_time and datetime.utcnow() >= paper.release_time else 'pending',
+        'center_id': paper.center_id,
+        'admin_public_key': admin_public_key,
+    })
+
 @center_bp.route('/download/<int:paper_id>', methods=['GET'])
 @token_required(role='center')
 def download_paper(current_user, paper_id):
     paper = Paper.query.get(paper_id)
     if not paper:
+        db.session.add(AuditLog(
+            user_id=current_user.id,
+            action='missing_paper',
+            details=f"paper_id={paper_id}; requester_center_id={current_user.id}"
+        ))
+        db.session.commit()
         return jsonify({'error': 'Paper not found'}), 404
         
     if paper.center_id != current_user.id:
+        db.session.add(AuditLog(
+            user_id=current_user.id,
+            action='unauthorized_download',
+            details=f"paper_id={paper_id}; requester_center_id={current_user.id}; assigned_center_id={paper.center_id}"
+        ))
+        db.session.commit()
         return jsonify({'error': 'Forbidden: Not your paper'}), 403
         
     if datetime.utcnow() < paper.release_time:
+        db.session.add(AuditLog(
+            user_id=current_user.id,
+            action='early_download_blocked',
+            details=f"paper_id={paper_id}; requester_center_id={current_user.id}; release_time={paper.release_time.isoformat()}"
+        ))
+        db.session.commit()
         return jsonify({'error': 'Not yet released'}), 403
         
     if not os.path.exists(paper.file_path):
+        db.session.add(AuditLog(
+            user_id=current_user.id,
+            action='missing_encrypted_file',
+            details=f"paper_id={paper_id}; file_path={paper.file_path}"
+        ))
+        db.session.commit()
         return jsonify({'error': 'Encrypted file missing from disk'}), 500
         
     with open(paper.file_path, 'rb') as f:
@@ -56,19 +113,51 @@ def decrypt_paper():
     
     if not all([encrypted_blob_b64, wrapped_aes_key_b64, signature_b64, center_private_key_pem, admin_public_key_pem]):
         return jsonify({'error': 'Missing arguments'}), 400
+
+    paper_id = data.get('paper_id')
+    if not paper_id:
+        return jsonify({'error': 'Missing paper_id for auditing'}), 400
+
+    try:
+        paper_id = int(paper_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'paper_id must be an integer'}), 400
+
+    paper = Paper.query.get(paper_id)
+    if not paper:
+        db.session.add(AuditLog(
+            user_id=None,
+            action='missing_paper',
+            details=f"paper_id={paper_id}; decrypt_request=true"
+        ))
+        db.session.commit()
+        return jsonify({'error': 'Paper not found'}), 404
         
     try:
         encrypted_blob = base64.b64decode(encrypted_blob_b64)
         wrapped_aes_key = base64.b64decode(wrapped_aes_key_b64)
         signature = base64.b64decode(signature_b64)
         center_priv_pem = center_private_key_pem.encode('utf-8')
-        admin_pub_pem = admin_public_key_pem.encode('utf-8')
     except Exception as e:
         return jsonify({'error': 'Decoding error: ' + str(e)}), 400
+
+    admin_pub_override = _get_admin_public_key_for_paper(paper_id)
+    if admin_pub_override:
+        admin_pub_pem = admin_pub_override.encode('utf-8')
+    elif admin_public_key_pem:
+        admin_pub_pem = admin_public_key_pem.encode('utf-8')
+    else:
+        return jsonify({'error': 'Admin public key not available for verification'}), 400
         
     # 1. Verify Signature
     is_valid = verify_signature(encrypted_blob, signature, admin_pub_pem)
     if not is_valid:
+        db.session.add(AuditLog(
+            user_id=paper.center_id,
+            action='signature_failed',
+            details=f"paper_id={paper_id}; center_id={paper.center_id}"
+        ))
+        db.session.commit()
         return jsonify({'error': 'Signature verification failed'}), 400
         
     # 2. Unwrap AES key
@@ -83,25 +172,14 @@ def decrypt_paper():
     except Exception as e:
         return jsonify({'error': 'Failed to decrypt file data'}), 400
 
-    # Embed visible Boneh-Shaw watermark (center_id, paper_id)
-    # Always use paper_id from request or fallback to DB
-    paper_id = data.get('paper_id')
-    if not paper_id:
-        return jsonify({'error': 'Missing paper_id for auditing'}), 400
-
-    try:
-        paper_id = int(paper_id)
-    except (TypeError, ValueError):
-        return jsonify({'error': 'paper_id must be an integer'}), 400
-
-    paper = Paper.query.get(paper_id)
-    if not paper:
-        return jsonify({'error': 'Paper not found'}), 404
-
+    # Embed visible Boneh-Shaw watermark for the decoded copy.
     center_id = paper.center_id
-    watermark = generate_boneh_shaw_fingerprint(center_id, str(paper_id))
+    watermark = generate_boneh_shaw_fingerprint(center_id, paper.filename)
     try:
-        decrypted_data = embed_watermark_text(decrypted_data, f"WATERMARK:{watermark}")
+        decrypted_data = embed_watermark_text(
+            decrypted_data,
+            f"CENTER: {center_id} | CODE: {watermark}"
+        )
     except Exception as e:
         print("[Watermarking Error]", e)
 
