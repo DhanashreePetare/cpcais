@@ -359,6 +359,7 @@
                   <pre id="my-center-public-key">Not loaded yet.</pre>
                   <div style="font-size:13px; margin:14px 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">RSA Private Key</div>
                   <pre id="my-private-key">Not generated yet.</pre>
+                  <button class="btn-outline" style="width:auto; min-width:200px;" onclick="downloadPrivateKey()">Download Private Key</button>
                   <button class="btn-danger" onclick="centerLogout()">Logout</button>
                 </div>
               </div>
@@ -465,6 +466,7 @@
       const meRes = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${state.centerToken}` } });
       if (!meRes.ok) {
         centerLogout();
+        showAlert('center-alert', 'error', 'Failed to load session. Backend unreachable or invalid token. API: ' + API_URL);
         return;
       }
       const meData = await meRes.json();
@@ -473,7 +475,7 @@
       document.getElementById('center-logged-in').style.display = 'block';
       document.getElementById('my-center-id').innerText = state.centerId;
       document.getElementById('my-center-public-key').innerText = meData.public_key || 'Not available';
-      document.getElementById('my-private-key').innerText = state.centerPrivKey ? `${state.centerPrivKey.substring(0, 50)}...\n[Hidden for Security]` : 'Not generated yet.';
+      document.getElementById('my-private-key').innerText = state.centerPrivKey || 'Not available';
       document.getElementById('download-card').style.opacity = '1';
       document.getElementById('download-card').style.pointerEvents = 'auto';
       await fetchAssignedPaper();
@@ -520,7 +522,14 @@
         state.centerPrivKey = data.private_key;
         localStorage.setItem(`center_priv_key_${u}`, data.private_key);
         document.getElementById('download-paper-id').value = '';
-        showAlert('center-alert', 'success', 'Registered! Save the private key on this machine, then login.');
+        document.getElementById('center-login-form').style.display = 'none';
+        document.getElementById('center-logged-in').style.display = 'block';
+        document.getElementById('my-center-id').innerText = state.centerId;
+        document.getElementById('my-center-public-key').innerText = data.public_key || 'Not available';
+        document.getElementById('my-private-key').innerText = state.centerPrivKey;
+        document.getElementById('download-card').style.opacity = '1';
+        document.getElementById('download-card').style.pointerEvents = 'auto';
+        showAlert('center-alert', 'success', '✅ Registered! Private key displayed above. Save it now using the Download button, then you can login next time.');
         persistUiState();
       } else {
         showAlert('center-alert', 'error', data.message || 'Registration failed');
@@ -541,8 +550,9 @@
         state.centerToken = data.token;
         const storedPrivKey = localStorage.getItem(`center_priv_key_${u}`);
         if (storedPrivKey && !state.centerPrivKey) state.centerPrivKey = storedPrivKey;
+        if (!state.centerPrivKey) return showAlert('center-alert', 'error', 'Private key not found on this machine. Register first to generate it.');
+        showAlert('center-alert', 'success', '✅ Login successful! Loading your session...');
         await applyCenterSession();
-        showAlert('center-alert', 'success', 'Login successful!');
       } else {
         showAlert('center-alert', 'error', data.message || 'Invalid center credentials');
       }
@@ -560,6 +570,20 @@
       document.getElementById('my-center-public-key').innerText = 'Not loaded yet.';
       document.getElementById('my-private-key').innerText = 'Not generated yet.';
       persistUiState();
+    }
+
+    function downloadPrivateKey() {
+      if (!state.centerPrivKey) return showAlert('center-alert', 'error', 'No private key available.');
+      const blob = new Blob([state.centerPrivKey], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `center_private_key_${state.centerId}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showAlert('center-alert', 'success', 'Private key downloaded! Store it in a safe location.');
     }
 
     function hasDownloadedThisSession(paperId) {
