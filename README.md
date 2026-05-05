@@ -118,3 +118,9 @@ To run the automated test suite located in the `tests/` folder:
 ```bash
 pytest
 ```
+
+**Option C: Clear All Table Data Without Dropping Tables**
+To delete the rows in the database while keeping the schema intact:
+```bash
+python clear_db.py
+```

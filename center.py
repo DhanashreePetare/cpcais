@@ -1,8 +1,7 @@
 import os
-import io
 import base64
 from datetime import datetime
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, current_app
 from models import db, User, Paper, AuditLog
 from auth import token_required
 from crypto_utils import unwrap_aes_key, decrypt_file_data, verify_signature
@@ -103,6 +102,7 @@ def decrypt_paper():
     """
     data = request.get_json()
     if not data:
+        print('[Decrypt] Missing JSON payload')
         return jsonify({'error': 'Missing JSON payload'}), 400
         
     encrypted_blob_b64 = data.get('encrypted_blob')
@@ -112,19 +112,23 @@ def decrypt_paper():
     admin_public_key_pem = data.get('admin_public_key')
     
     if not all([encrypted_blob_b64, wrapped_aes_key_b64, signature_b64, center_private_key_pem, admin_public_key_pem]):
+        print('[Decrypt] Missing arguments')
         return jsonify({'error': 'Missing arguments'}), 400
 
     paper_id = data.get('paper_id')
     if not paper_id:
+        print('[Decrypt] Missing paper_id for auditing')
         return jsonify({'error': 'Missing paper_id for auditing'}), 400
 
     try:
         paper_id = int(paper_id)
     except (TypeError, ValueError):
+        print(f"[Decrypt] Invalid paper_id: {paper_id}")
         return jsonify({'error': 'paper_id must be an integer'}), 400
 
     paper = Paper.query.get(paper_id)
     if not paper:
+        print(f"[Decrypt] Paper not found: paper_id={paper_id}")
         db.session.add(AuditLog(
             user_id=None,
             action='missing_paper',
@@ -139,6 +143,7 @@ def decrypt_paper():
         signature = base64.b64decode(signature_b64)
         center_priv_pem = center_private_key_pem.encode('utf-8')
     except Exception as e:
+        print(f"[Decrypt] Decoding error: {e}")
         return jsonify({'error': 'Decoding error: ' + str(e)}), 400
 
     admin_pub_override = _get_admin_public_key_for_paper(paper_id)
@@ -147,11 +152,13 @@ def decrypt_paper():
     elif admin_public_key_pem:
         admin_pub_pem = admin_public_key_pem.encode('utf-8')
     else:
+        print(f"[Decrypt] Admin public key missing for paper_id={paper_id}")
         return jsonify({'error': 'Admin public key not available for verification'}), 400
         
     # 1. Verify Signature
     is_valid = verify_signature(encrypted_blob, signature, admin_pub_pem)
     if not is_valid:
+        print(f"[Decrypt] Signature verification failed for paper_id={paper_id}")
         db.session.add(AuditLog(
             user_id=paper.center_id,
             action='signature_failed',
@@ -164,12 +171,14 @@ def decrypt_paper():
     try:
         aes_key = unwrap_aes_key(wrapped_aes_key, center_priv_pem)
     except Exception as e:
+        print(f"[Decrypt] Failed to unwrap AES key for paper_id={paper_id}: {e}")
         return jsonify({'error': 'Failed to unwrap AES key. Wrong center private key?'}), 400
         
     # 3. Decrypt PDF data
     try:
         decrypted_data = decrypt_file_data(encrypted_blob, aes_key)
     except Exception as e:
+        print(f"[Decrypt] Failed to decrypt file data for paper_id={paper_id}: {e}")
         return jsonify({'error': 'Failed to decrypt file data'}), 400
 
     # Embed visible Boneh-Shaw watermark for the decoded copy.
@@ -183,7 +192,7 @@ def decrypt_paper():
     except Exception as e:
         print("[Watermarking Error]", e)
 
-    # Return as a file download 
+    # Return as JSON with base64-encoded PDF so frontend can control the download
     db.session.add(AuditLog(
         user_id=center_id,
         action='decrypt',
@@ -191,9 +200,7 @@ def decrypt_paper():
     ))
     db.session.commit()
 
-    return send_file(
-        io.BytesIO(decrypted_data),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name='decrypted_paper.pdf'
-    )
+    return jsonify({
+        'decrypted_pdf_b64': base64.b64encode(decrypted_data).decode('utf-8'),
+        'filename': paper.filename or 'decrypted_paper.pdf'
+    })

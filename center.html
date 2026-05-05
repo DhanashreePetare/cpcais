@@ -423,7 +423,10 @@
         : 'http://127.0.0.1:5000';
     }
     const DOWNLOAD_SESSION_PREFIX = 'paper_saved_session_';
+    const DECRYPTED_CACHE_PREFIX = 'paper_decrypted_b64_';
+    const DECRYPTED_NAME_PREFIX = 'paper_decrypted_name_';
     const UI_STATE_STORAGE_KEY = 'paper_center_ui_state_v1';
+    const ACTIVE_PAGE_STORAGE_KEY = 'paper_center_active_page_v1';
     let state = { centerToken: null, centerId: null, centerPrivKey: null, adminPubKey: null };
 
     if (API_URL) {
@@ -431,11 +434,35 @@
       console.log('📍 Using API URL:', API_URL);
     }
 
-    function showAlert(id, type, msg) {
+    function showAlert(id, type, msg, options = {}) {
       const el = document.getElementById(id);
       el.className = `alert ${type}`;
       el.innerText = msg;
-      setTimeout(() => { el.style.display = 'none'; el.className = 'alert'; }, 5000);
+      if (options.persist) return;
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 15000;
+      setTimeout(() => { el.style.display = 'none'; el.className = 'alert'; }, timeoutMs);
+    }
+
+    function setLoading(button, isLoading, label) {
+      if (!button) return;
+      button.disabled = isLoading;
+      button.style.opacity = isLoading ? '0.7' : '1';
+      button.textContent = label || (isLoading ? 'Working...' : button.textContent);
+    }
+
+    async function readJsonResponse(res) {
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const rawText = await res.text();
+        return { ok: false, data: null, rawText };
+      }
+      try {
+        const data = await res.json();
+        return { ok: true, data, rawText: null };
+      } catch (error) {
+        const rawText = await res.text();
+        return { ok: false, data: null, rawText };
+      }
     }
 
     function showCenterPage(pageId) {
@@ -445,6 +472,12 @@
       const activeButton = document.querySelector(`.nav-btn[data-page="${pageId}"]`);
       if (activePage) activePage.classList.add('active');
       if (activeButton) activeButton.classList.add('active');
+      if (activePage) localStorage.setItem(ACTIVE_PAGE_STORAGE_KEY, pageId);
+    }
+
+    function restoreActivePage() {
+      const savedPage = localStorage.getItem(ACTIVE_PAGE_STORAGE_KEY);
+      if (savedPage) showCenterPage(savedPage);
     }
 
     function persistUiState() {
@@ -474,8 +507,8 @@
     async function applyCenterSession() {
       const meRes = await fetch(`${API_URL}/auth/me`, { headers: { 'Authorization': `Bearer ${state.centerToken}` } });
       if (!meRes.ok) {
-        centerLogout();
         showAlert('center-alert', 'error', 'Failed to load session. Backend unreachable or invalid token. API: ' + API_URL);
+        centerLogout();
         return;
       }
       const meData = await meRes.json();
@@ -507,6 +540,7 @@
         paperIdInput.value = data.paper_id;
         paperIdInput.placeholder = `Assigned Paper ID: ${data.paper_id}`;
         document.getElementById('assigned-paper-label').innerText = `Paper #${data.paper_id}${data.status ? ` • ${data.status}` : ''}`;
+        restoreDecryptedResult();
       } else {
         paperIdInput.value = '';
         paperIdInput.placeholder = 'No assigned paper yet';
@@ -601,7 +635,33 @@
     function markDownloadedThisSession(paperId) {
       sessionStorage.setItem(DOWNLOAD_SESSION_PREFIX + paperId, 'true');
     }
-    function disableDownloadButton(btn, label = 'Paper is locked') {
+    function cacheDecryptedPayload(paperId, filename, b64Payload) {
+      if (!paperId || !b64Payload) return;
+      sessionStorage.setItem(DECRYPTED_CACHE_PREFIX + paperId, b64Payload);
+      sessionStorage.setItem(DECRYPTED_NAME_PREFIX + paperId, filename || `decrypted_paper_${paperId}.pdf`);
+    }
+    function loadCachedDecryptedPayload(paperId) {
+      const b64Payload = sessionStorage.getItem(DECRYPTED_CACHE_PREFIX + paperId);
+      if (!b64Payload) return null;
+      const filename = sessionStorage.getItem(DECRYPTED_NAME_PREFIX + paperId) || `decrypted_paper_${paperId}.pdf`;
+      return { b64Payload, filename };
+    }
+    function restoreDecryptedResult() {
+      const pid = document.getElementById('download-paper-id').value;
+      if (!pid) return;
+      const cached = loadCachedDecryptedPayload(pid);
+      if (!cached) return;
+      const binaryString = atob(cached.b64Payload);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      setupSingleDownloadButton(pid, url, cached.filename);
+      document.getElementById('decrypted-result').style.display = 'block';
+    }
+    function disableDownloadButton(btn, label = 'Downloaded (locked)') {
       btn.disabled = true;
       btn.style.opacity = '0.6';
       btn.textContent = label;
@@ -624,46 +684,108 @@
         link.remove();
         markDownloadedThisSession(paperId);
         disableDownloadButton(btn);
-        showAlert('download-alert', 'success', 'Saved locally. Re-download blocked for this session.');
+        showAlert('download-alert', 'success', 'Saved locally. Re-download blocked for this session.', { timeoutMs: 20000 });
       };
     }
 
     async function downloadAndDecrypt(evt) {
       if (evt) { evt.preventDefault(); evt.stopPropagation(); }
-      const pid = document.getElementById('download-paper-id').value;
-      if (!pid) return showAlert('download-alert', 'error', 'Enter a Paper ID');
-      if (hasDownloadedThisSession(pid)) return showAlert('download-alert', 'error', 'Paper already saved in this browser session.');
-      if (!state.centerPrivKey) return showAlert('download-alert', 'error', 'No private key available. Register on this machine first.');
+      showCenterPage('page-download');
+      const actionButton = evt?.currentTarget;
+      const originalLabel = actionButton?.textContent || 'Fetch & Decrypt Paper';
+      setLoading(actionButton, true, 'Decrypting...');
+      try {
+        const pid = document.getElementById('download-paper-id').value;
+        if (!pid) {
+          showAlert('download-alert', 'error', 'Enter a Paper ID');
+          return;
+        }
+        if (hasDownloadedThisSession(pid)) {
+          showAlert('download-alert', 'error', 'Paper already saved in this browser session.');
+          return;
+        }
+        if (!state.centerToken) {
+          showAlert('download-alert', 'error', 'Session missing. Please login again.');
+          return;
+        }
+        if (!state.centerPrivKey) {
+          showAlert('download-alert', 'error', 'No private key available. Register on this machine first.');
+          return;
+        }
 
-      const fetchRes = await fetch(`${API_URL}/center/download/${pid}`, { headers: { 'Authorization': `Bearer ${state.centerToken}` } });
-      const fetchData = await fetchRes.json();
-      if (!fetchRes.ok) return showAlert('download-alert', 'error', fetchData.error || 'Download denied');
+        const fetchRes = await fetch(`${API_URL}/center/download/${pid}`, { headers: { 'Authorization': `Bearer ${state.centerToken}` } });
+        const fetchJson = await readJsonResponse(fetchRes);
+        if (!fetchRes.ok || !fetchJson.ok) {
+          const errorText = fetchJson.data?.error || fetchJson.rawText || 'Download denied';
+          showAlert('download-alert', 'error', errorText, { persist: true });
+          return;
+        }
+        const fetchData = fetchJson.data;
 
-      const decryptPayload = {
-        encrypted_blob: fetchData.encrypted_blob,
-        wrapped_aes_key: fetchData.wrapped_aes_key,
-        signature: fetchData.signature,
-        center_private_key: state.centerPrivKey,
-        admin_public_key: (await getAdminPublicKey()) || state.adminPubKey,
-        paper_id: Number(pid)
-      };
+        const decryptPayload = {
+          encrypted_blob: fetchData.encrypted_blob,
+          wrapped_aes_key: fetchData.wrapped_aes_key,
+          signature: fetchData.signature,
+          center_private_key: state.centerPrivKey,
+          admin_public_key: (await getAdminPublicKey()) || state.adminPubKey,
+          paper_id: Number(pid)
+        };
 
-      const decRes = await fetch(`${API_URL}/center/decrypt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(decryptPayload)
-      });
-      if (!decRes.ok) {
-        const decErr = await decRes.json();
-        return showAlert('download-alert', 'error', `Decryption failed: ${decErr.error}`);
+        const decRes = await fetch(`${API_URL}/center/decrypt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(decryptPayload)
+        });
+
+        const decContentType = (decRes.headers.get('content-type') || '').toLowerCase();
+        if (decContentType.includes('application/pdf')) {
+          const blob = await decRes.blob();
+          const url = window.URL.createObjectURL(blob);
+          setupSingleDownloadButton(pid, url, fetchData.filename || 'decrypted_paper.pdf');
+          document.getElementById('decrypted-result').style.display = 'block';
+          showAlert('download-alert', 'success', 'Decryption and Signature Verification successful!', { timeoutMs: 20000 });
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result || '';
+            const b64Payload = typeof result === 'string' ? result.split(',')[1] : null;
+            if (b64Payload) cacheDecryptedPayload(pid, fetchData.filename, b64Payload);
+          };
+          reader.readAsDataURL(blob);
+          persistUiState();
+          return;
+        }
+
+        const decJson = await readJsonResponse(decRes);
+        if (!decRes.ok || !decJson.ok) {
+          const errorText = decJson.data?.error || decJson.rawText || 'Decryption failed.';
+          showAlert('download-alert', 'error', `Decryption failed: ${errorText}`, { persist: true });
+          return;
+        }
+
+        const decData = decJson.data;
+        if (!decData || !decData.decrypted_pdf_b64) {
+          showAlert('download-alert', 'error', 'Decryption succeeded but no PDF data was returned.', { persist: true });
+          return;
+        }
+
+        const binaryString = atob(decData.decrypted_pdf_b64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        setupSingleDownloadButton(pid, url, decData.filename || 'decrypted_paper.pdf');
+        document.getElementById('decrypted-result').style.display = 'block';
+        showAlert('download-alert', 'success', 'Decryption and Signature Verification successful!', { timeoutMs: 20000 });
+        cacheDecryptedPayload(pid, decData.filename, decData.decrypted_pdf_b64);
+        persistUiState();
+      } catch (error) {
+        console.error('Decrypt flow failed:', error);
+        showAlert('download-alert', 'error', 'Decryption failed due to a client error. Check the console for details.', { persist: true });
+      } finally {
+        setLoading(actionButton, false, originalLabel);
       }
-
-      const blob = await decRes.blob();
-      const url = window.URL.createObjectURL(blob);
-      setupSingleDownloadButton(pid, url, fetchData.filename || 'decrypted_paper.pdf');
-      document.getElementById('decrypted-result').style.display = 'block';
-      showAlert('download-alert', 'success', 'Decryption and Signature Verification successful!');
-      persistUiState();
     }
 
     async function getAdminPublicKey() {
@@ -677,7 +799,19 @@
       return state.adminPubKey;
     }
 
-    document.getElementById('download-paper-id').addEventListener('input', persistUiState);
+    document.getElementById('download-paper-id').addEventListener('input', () => {
+      persistUiState();
+      restoreDecryptedResult();
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      showAlert('download-alert', 'error', 'Unexpected client error. Open the console for details.');
+    });
+    window.addEventListener('error', (event) => {
+      console.error('Unhandled error:', event.error || event.message);
+      showAlert('download-alert', 'error', 'Unexpected client error. Open the console for details.');
+    });
+    restoreActivePage();
     hydrateUiState();
   </script>
 </body>
