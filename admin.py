@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
-from models import db, User, Paper, AuditLog
+from models import db, User, Paper, AuditLog, WatermarkRecord
 from auth import token_required
 from crypto_utils import generate_aes_key, encrypt_file_data, wrap_aes_key, sign_data
 from cryptography.hazmat.primitives import hashes
@@ -13,9 +13,15 @@ from cryptography.hazmat.primitives import hashes
 # --- IMPORT THE WATERMARK UTILS ---
 from watermark_utils import (
     generate_boneh_shaw_fingerprint,
+    build_hidden_payload,
+    decode_hidden_payload,
+    extract_hidden_marker,
+    build_visible_watermark_label,
+    add_visible_watermark,
     embed_watermark_text,
     extract_watermark_text,
     extract_watermark_from_text_blob,
+    extract_visible_watermark_from_text,
     extract_boneh_shaw_code,
     extract_center_id_from_watermark,
     identify_boneh_shaw_center,
@@ -61,13 +67,16 @@ def upload_paper(current_user):
     file_data = file.read()
     
     # --- STEP: APPLY WATERMARK BEFORE ENCRYPTION ---
+    watermark_payload = None
+    visible_label = None
     try:
         if file_data.lstrip().startswith(b'%PDF'):
-            # 1. Generate the unique fingerprint for this center/paper
             fingerprint = generate_boneh_shaw_fingerprint(center_id, file.filename)
             watermark_text = f"CENTER: {center_id} | CODE: {fingerprint}"
+            watermark_payload = build_hidden_payload(watermark_text)
 
-            # 2. Embed the watermark into the PDF bytes
+            visible_label = build_visible_watermark_label(center.username, datetime.utcnow().strftime('%Y-%m-%d %I:%M %p'))
+            file_data = add_visible_watermark(file_data, visible_label)
             file_data = embed_watermark_text(file_data, watermark_text)
             print(f"Watermark applied: {watermark_text}")
         else:
@@ -116,6 +125,14 @@ def upload_paper(current_user):
     
     db.session.add(new_paper)
     db.session.flush()
+
+    if watermark_payload:
+        db.session.add(WatermarkRecord(
+            paper_id=new_paper.id,
+            center_id=center.id,
+            wm_payload=watermark_payload,
+            visible_label=visible_label,
+        ))
 
     db.session.add(AuditLog(
         user_id=current_user.id,
@@ -207,6 +224,11 @@ def dashboard(current_user):
 @token_required(role='admin')
 def inspect_watermark(current_user):
     payload = request.get_json(silent=True) or {}
+    inspection_mode = payload.get('mode')
+    if not inspection_mode and request.form:
+        inspection_mode = request.form.get('mode')
+    if not inspection_mode:
+        inspection_mode = 'text'
     pasted_text = payload.get('text')
     if not pasted_text and request.form:
         pasted_text = request.form.get('text') or request.form.get('forensic_text')
@@ -214,9 +236,14 @@ def inspect_watermark(current_user):
         raw_body = request.get_data(as_text=True)
         if raw_body and raw_body.strip() and request.content_type and 'text/plain' in request.content_type:
             pasted_text = raw_body.strip()
-    inspection_mode = 'text' if pasted_text else 'pdf'
+    if inspection_mode not in ['pdf', 'text', 'photo']:
+        inspection_mode = 'text' if pasted_text else 'pdf'
 
     file = request.files.get('file')
+    if inspection_mode == 'pdf' and not file:
+        return jsonify({'error': 'No PDF uploaded'}), 400
+    if inspection_mode in ['text', 'photo'] and not pasted_text:
+        return jsonify({'error': 'No text pasted'}), 400
     if not file and not pasted_text:
         return jsonify({'error': 'No file uploaded or text pasted'}), 400
 
@@ -236,7 +263,11 @@ def inspect_watermark(current_user):
         paper_context = paper.filename
 
     watermark_text = None
-    if pasted_text:
+    visible_trace = None
+    if inspection_mode == 'photo':
+        visible_trace = extract_visible_watermark_from_text(pasted_text)
+        watermark_text = visible_trace or str(pasted_text).strip() or None
+    elif pasted_text:
         watermark_text = extract_watermark_from_text_blob(pasted_text)
         if not watermark_text:
             watermark_text = str(pasted_text).strip() or None
@@ -244,10 +275,24 @@ def inspect_watermark(current_user):
         pdf_bytes = file.read()
         watermark_text = extract_watermark_text(pdf_bytes)
 
+    hidden_payload = decode_hidden_payload(pasted_text) if pasted_text else None
+    if not hidden_payload and watermark_text:
+        hidden_payload = decode_hidden_payload(watermark_text)
+    if not hidden_payload and pasted_text:
+        hidden_payload = extract_hidden_marker(pasted_text)
+
+    hidden_center_id = None
+    hidden_tag = None
+    if hidden_payload:
+        center_match = re.search(r"CID=(\d+)", hidden_payload)
+        tag_match = re.search(r"TAG=([A-Z0-9]+)", hidden_payload)
+        hidden_center_id = int(center_match.group(1)) if center_match else None
+        hidden_tag = tag_match.group(1) if tag_match else None
+
     extracted_code = extract_boneh_shaw_code(watermark_text)
     cleartext_center_id = extract_center_id_from_watermark(watermark_text)
     inferred_center_id = identify_boneh_shaw_center(watermark_text, paper_context) if paper_context else None
-    watermark_present = bool(watermark_text and (extracted_code or cleartext_center_id is not None))
+    watermark_present = bool(watermark_text and (extracted_code or cleartext_center_id is not None or hidden_center_id is not None or visible_trace))
     notes = []
     if paper_context is None:
         notes.append('No paper_id was supplied, so the code could not be matched against the database.')
@@ -255,6 +300,8 @@ def inspect_watermark(current_user):
         notes.append('The uploaded PDF does not contain a cleartext CENTER field. This usually means you inspected the decrypted output copy, which preserves only the Boneh-Shaw forensic code.')
     if extracted_code:
         notes.append('A Boneh-Shaw code was found in the watermark metadata.')
+    if inspection_mode == 'photo' and visible_trace:
+        notes.append('Visible watermark text detected from photo/OCR input.')
     if pasted_text and watermark_present:
         notes.append('The pasted text contains a detectable watermark trace.')
     if pasted_text and not watermark_present:
@@ -274,13 +321,28 @@ def inspect_watermark(current_user):
         ))
         db.session.commit()
 
+    record_match = None
+    if hidden_payload and not paper:
+        record_match = WatermarkRecord.query.filter_by(wm_payload=hidden_payload).order_by(WatermarkRecord.generated_at.desc()).first()
+    if cleartext_center_id is not None and not paper and not record_match:
+        record_match = WatermarkRecord.query.filter_by(center_id=cleartext_center_id).order_by(WatermarkRecord.generated_at.desc()).first()
+    if inferred_center_id is not None and not paper and not record_match:
+        record_match = WatermarkRecord.query.filter_by(center_id=inferred_center_id).order_by(WatermarkRecord.generated_at.desc()).first()
+
     return jsonify({
         'paper_id': paper.id if paper else None,
         'paper_context': paper_context,
         'watermark_text': display_watermark_text,
+        'visible_trace': visible_trace,
         'fingerprint_code': extracted_code,
+        'hidden_payload': hidden_payload,
+        'hidden_center_id': hidden_center_id,
+        'hidden_tag': hidden_tag,
         'cleartext_center_id': cleartext_center_id,
         'inferred_center_id': inferred_center_id,
+        'record_paper_id': record_match.paper_id if record_match else None,
+        'record_center_id': record_match.center_id if record_match else None,
+        'record_visible_label': record_match.visible_label if record_match else None,
         'watermark_present': watermark_present,
         'inspection_mode': inspection_mode,
         'matched': (
@@ -333,4 +395,59 @@ def paper_timeline(current_user, paper_id):
             'encrypted_file_present': os.path.exists(paper.file_path),
         },
         'timeline': timeline,
+    })
+
+
+@admin_bp.route('/forensics/generate-test-data', methods=['POST'])
+@token_required(role='admin')
+def generate_test_data(current_user):
+    """Generate sample test data for all three forensic leak detection cases."""
+    from watermark_utils import (
+        _encode_hidden_payload,
+        _build_hidden_payload,
+        build_visible_watermark_label,
+        add_visible_watermark,
+        embed_watermark_text,
+    )
+    from reportlab.pdfgen import canvas as rl_canvas
+    import io as _io
+
+    payload = request.get_json(silent=True) or {}
+    center_id = payload.get('center_id', 42)
+    timestamp_str = datetime.utcnow().strftime('%Y-%m-%d %I:%M %p')
+
+    # --- Build a small real PDF ---
+    pdf_buf = _io.BytesIO()
+    c = rl_canvas.Canvas(pdf_buf)
+    c.setFont("Helvetica", 14)
+    c.drawString(72, 750, "Sample Exam Paper — Leak Detection Demo")
+    c.drawString(72, 720, "This PDF was generated to test the forensic watermark system.")
+    c.drawString(72, 690, f"Target center: {center_id}")
+    c.save()
+    raw_pdf = pdf_buf.getvalue()
+
+    # Apply watermarks exactly like the upload flow
+    fingerprint = generate_boneh_shaw_fingerprint(center_id, 'test_demo.pdf')
+    watermark_text = f"CENTER: {center_id} | CODE: {fingerprint}"
+    visible_label = build_visible_watermark_label(f"CENTER-{center_id}", timestamp_str)
+
+    watermarked_pdf = add_visible_watermark(raw_pdf, visible_label)
+    watermarked_pdf = embed_watermark_text(watermarked_pdf, watermark_text)
+
+    # --- Case 2: build text with zero-width chars embedded ---
+    hidden_payload = _build_hidden_payload(watermark_text)
+    encoded_zw = _encode_hidden_payload(hidden_payload)
+    sample_text = f"Question 1: What is the capital of France?{encoded_zw} Answer: Paris."
+
+    # --- Case 3: simulate OCR visible watermark text ---
+    ocr_text = f"CENTER CENTER-{center_id} - {timestamp_str}"
+
+    return jsonify({
+        'case1_pdf_b64': base64.b64encode(watermarked_pdf).decode('ascii'),
+        'case2_text': sample_text,
+        'case2_hidden_payload': hidden_payload,
+        'case3_ocr_text': ocr_text,
+        'visible_label': visible_label,
+        'watermark_text': watermark_text,
+        'center_id': center_id,
     })

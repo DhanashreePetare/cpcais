@@ -5,7 +5,12 @@ from flask import Blueprint, request, jsonify, current_app
 from models import db, User, Paper, AuditLog
 from auth import token_required
 from crypto_utils import unwrap_aes_key, decrypt_file_data, verify_signature
-from watermark_utils import generate_boneh_shaw_fingerprint, embed_watermark_text
+from watermark_utils import (
+    generate_boneh_shaw_fingerprint,
+    build_visible_watermark_label,
+    add_visible_watermark,
+    embed_watermark_text,
+)
 
 center_bp = Blueprint('center', __name__)
 
@@ -181,14 +186,23 @@ def decrypt_paper():
         print(f"[Decrypt] Failed to decrypt file data for paper_id={paper_id}: {e}")
         return jsonify({'error': 'Failed to decrypt file data'}), 400
 
-    # Embed visible Boneh-Shaw watermark for the decoded copy.
+    # Re-apply a visible watermark on the final decrypted copy so it is obvious
+    # in end-user viewers such as Acrobat, then keep the hidden trace as well.
     center_id = paper.center_id
     watermark = generate_boneh_shaw_fingerprint(center_id, paper.filename)
     try:
+        visible_label = build_visible_watermark_label(
+            f"CENTER-{center_id}",
+            datetime.utcnow().strftime('%Y-%m-%d %I:%M %p')
+        )
+        decrypted_data = add_visible_watermark(decrypted_data, visible_label)
+        print(f"[Decrypt] Visible watermark applied for paper_id={paper_id}: {visible_label}")
+
         decrypted_data = embed_watermark_text(
             decrypted_data,
             f"CENTER: {center_id} | CODE: {watermark}"
         )
+        print(f"[Decrypt] Hidden watermark applied for paper_id={paper_id}")
     except Exception as e:
         print("[Watermarking Error]", e)
 

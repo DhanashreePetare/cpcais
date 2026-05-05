@@ -498,8 +498,14 @@
         state.centerId = saved.centerId || null;
         state.centerPrivKey = saved.centerPrivKey || null;
         if (saved.downloadPaperId) document.getElementById('download-paper-id').value = saved.downloadPaperId;
-        if (state.centerToken) await applyCenterSession();
+        if (state.centerToken) {
+          await applyCenterSession();
+        }
       } catch (error) {
+        // Session is stale (DB recreated / server restarted) — clear everything
+        state.centerToken = null;
+        state.centerId = null;
+        state.centerPrivKey = null;
         localStorage.removeItem(UI_STATE_STORAGE_KEY);
       }
     }
@@ -591,8 +597,10 @@
       const data = await res.json();
       if (res.ok && data.role === 'center') {
         state.centerToken = data.token;
+        // Always prefer the per-username key (most recent from registration)
+        // over any stale key loaded from hydrateUiState
         const storedPrivKey = localStorage.getItem(`center_priv_key_${u}`);
-        if (storedPrivKey && !state.centerPrivKey) state.centerPrivKey = storedPrivKey;
+        if (storedPrivKey) state.centerPrivKey = storedPrivKey;
         if (!state.centerPrivKey) return showAlert('center-alert', 'error', 'Private key not found on this machine. Register first to generate it.');
         showAlert('center-alert', 'success', '✅ Login successful! Loading your session...');
         await applyCenterSession();
@@ -604,6 +612,7 @@
     function centerLogout() {
       state.centerToken = null;
       state.centerId = null;
+      state.centerPrivKey = null;
       document.getElementById('center-login-form').style.display = 'block';
       document.getElementById('center-logged-in').style.display = 'none';
       document.getElementById('download-card').style.opacity = '0.5';

@@ -6,11 +6,12 @@ from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 
-_ZERO_WIDTH_CHARS = ["\u200b", "\u200c", "\u200d", "\u2060"]
+_ZERO_WIDTH_CHARS = ["\u200b", "\u200c"]
 _ZW_BIT_0 = "\u200b"
 _ZW_BIT_1 = "\u200c"
-_ZW_START = "\u2063"
-_ZW_END = "\u2064"
+_ZW_START = "\u200b\u200b\u200b\u200b"
+_ZW_END = "\u200c\u200c\u200c\u200c"
+_VISIBLE_WM_PREFIX = "CENTER"
 
 
 def _normalize_text_watermark(watermark_text):
@@ -54,6 +55,29 @@ def _decode_hidden_payload(text_blob):
         except UnicodeDecodeError:
             continue
     return None
+
+
+def build_hidden_payload(watermark_text):
+    return _build_hidden_payload(watermark_text)
+
+
+def decode_hidden_payload(text_blob):
+    return _decode_hidden_payload(text_blob)
+
+
+def extract_hidden_marker(text_blob):
+    if not text_blob:
+        return None
+    match = re.search(r"ZW:([A-Za-z0-9=;:_-]+)", str(text_blob))
+    return match.group(1) if match else None
+
+
+def build_hidden_payload(watermark_text):
+    return _build_hidden_payload(watermark_text)
+
+
+def decode_hidden_payload(text_blob):
+    return _decode_hidden_payload(text_blob)
 
 
 def _build_hidden_payload(watermark_text):
@@ -234,9 +258,9 @@ def embed_watermark_text(pdf_bytes, watermark_text):
         can = canvas.Canvas(packet, pagesize=(width, height))
         
         # --- THE INVISIBLE PART ---
-        # Set alpha to 0.0 makes the text completely transparent
-        can.setFillColor(Color(0, 0, 0, alpha=0.0)) 
-        can.setFont("Helvetica", 1) # Tiny font size
+        # Use invisible text render mode so zero-width glyphs do not display as boxes.
+        can.setFillColor(Color(0, 0, 0, alpha=0.0))
+        can.setFont("Helvetica", 1)
         
         # Scatter the same watermark across the page so copied text preserves the trace.
         scatter_positions = [
@@ -246,7 +270,20 @@ def embed_watermark_text(pdf_bytes, watermark_text):
             (width * 0.55, height * 0.70),
         ]
         for snippet, (x, y) in zip(snippets, scatter_positions):
-            can.drawString(float(x), float(y), snippet)
+            text_obj = can.beginText(float(x), float(y))
+            text_obj.setFont("Helvetica", 1)
+            text_obj.setTextRenderMode(3)
+            text_obj.textOut(snippet)
+            can.drawText(text_obj)
+
+        # Add a tiny white marker so copy/paste keeps a readable payload.
+        hidden_payload = _build_hidden_payload(watermark_text)
+        if hidden_payload:
+            can.setFillColor(Color(1, 1, 1))
+            marker_obj = can.beginText(2, 2)
+            marker_obj.setFont("Helvetica", 1)
+            marker_obj.textOut(f"ZW:{hidden_payload}")
+            can.drawText(marker_obj)
         can.save()
         
         packet.seek(0)
@@ -273,6 +310,94 @@ def embed_watermark_text(pdf_bytes, watermark_text):
     output_stream = io.BytesIO()
     output_pdf.write(output_stream)
     return output_stream.getvalue()
+
+
+def build_visible_watermark_label(center_name, issued_at):
+    safe_center = str(center_name or 'CENTER').strip().upper()
+    safe_ts = str(issued_at or '').strip()
+    return f"{_VISIBLE_WM_PREFIX} {safe_center} - {safe_ts}" if safe_ts else f"{_VISIBLE_WM_PREFIX} {safe_center}"
+
+
+def add_visible_watermark(pdf_bytes, watermark_label, opacity=0.6):
+    """
+    Bake a very visible watermark onto every page using direct PDF text.
+    """
+    input_pdf = PdfReader(io.BytesIO(pdf_bytes))
+    output_pdf = PdfWriter()
+
+    label_text = str(watermark_label or '').strip()
+    alpha = int(max(0.0, min(float(opacity), 1.0)) * 255)
+    if ' - ' in label_text:
+        center_name, timestamp = label_text.split(' - ', 1)
+        watermark_line = f"{center_name.strip()}   {timestamp.strip()}"
+    else:
+        watermark_line = label_text or 'CENTER'
+
+    for page in input_pdf.pages:
+        mediabox = page.mediabox
+        width = float(mediabox.width)
+        height = float(mediabox.height)
+
+        # --- Build overlay PDF page with the watermark text ---
+        packet = io.BytesIO()
+        can = canvas.Canvas(packet, pagesize=(width, height))
+
+        # Strong, visible banner at the top.
+        can.setFillColor(Color(0.1, 0.1, 0.1))
+        can.rect(0, height - 55, width, 55, fill=1, stroke=0)
+        can.setFillColor(Color(1, 1, 1))
+        can.setFont("Helvetica-Bold", 24)
+        can.drawString(20, height - 38, watermark_line)
+
+        # Large centered watermark.
+        can.setFillColor(Color(0.65, 0.0, 0.0))
+        can.setFont("Helvetica-Bold", 60)
+        can.drawCentredString(width / 2, height / 2, watermark_line)
+
+        # Diagonal repeat for extra visibility.
+        can.setFillColor(Color(0.45, 0.0, 0.0))
+        can.setFont("Helvetica", 32)
+        can.saveState()
+        can.translate(width / 2, height / 2)
+        can.rotate(35)
+        for y_pos in range(-600, 600, 120):
+            can.drawCentredString(0, y_pos, watermark_line)
+        can.restoreState()
+
+        can.save()
+
+        # --- Merge watermark overlay on top of original page ---
+        packet.seek(0)
+        wm_page = PdfReader(packet).pages[0]
+
+        # Flatten original page first
+        flat_writer = PdfWriter()
+        flat_writer.add_page(page)
+        flat_buf = io.BytesIO()
+        flat_writer.write(flat_buf)
+        flat_buf.seek(0)
+        clean_page = PdfReader(flat_buf).pages[0]
+
+        # Merge: watermark image goes on top of the clean page
+        clean_page.merge_page(wm_page)
+        output_pdf.add_page(clean_page)
+
+    output_stream = io.BytesIO()
+    output_pdf.write(output_stream)
+    return output_stream.getvalue()
+
+
+def extract_visible_watermark_from_text(text_blob):
+    """Extract a visible watermark label from OCR or copied text."""
+    if not text_blob:
+        return None
+    text = _normalize_text_for_matching(text_blob)
+    match = re.search(rf"{_VISIBLE_WM_PREFIX}\s+([A-Z0-9_-]+)\s*-\s*(.+)?", text)
+    if match:
+        center_name = match.group(1).strip()
+        ts = (match.group(2) or '').strip()
+        return build_visible_watermark_label(center_name, ts)
+    return None
 
 def extract_watermark_text(pdf_bytes):
     """

@@ -108,13 +108,16 @@ def login():
 @auth_bp.route('/me', methods=['GET'])
 @token_required()
 def me(current_user):
-    return jsonify({
+    response = {
         'id': current_user.id,
         'username': current_user.username,
         'email': current_user.email,
         'role': current_user.role,
         'public_key': current_user.public_key
-    })
+    }
+    if current_user.role == 'admin' and current_user.private_key:
+        response['private_key'] = current_user.private_key
+    return jsonify(response)
 
 
 @auth_bp.route('/admin-public-key', methods=['GET'])

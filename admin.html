@@ -682,23 +682,46 @@
             <div class="page-head">
               <div>
                 <div class="eyebrow">Forensics</div>
-                <h2>Watermark Forensics</h2>
-                <p>Inspect a suspected leaked PDF and see whether the fingerprint matches a known paper.</p>
+                <h2>Leak Detection Forensics</h2>
+                <p>Run leak analysis using three channels: forwarded PDF, copied text, or photo/OCR text.</p>
               </div>
               <div class="badge">Leak analysis</div>
             </div>
             <div id="forensics-alert" class="alert"></div>
             <div class="grid-2">
               <div class="card">
-                <textarea id="forensic-text" placeholder="Or paste copied text from a suspected leaked paper here" rows="8" style="width:100%; resize:vertical; padding:12px 13px; margin:8px 0; border-radius:12px; border:1px solid rgba(16,38,96,0.18); background:#f8f9ff; color:var(--text); font-family:inherit; font-size:14px;"></textarea>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                  <button class="btn-outline" onclick="inspectPastedTextWatermark()">Inspect Pasted Text</button>
+                <div style="margin-bottom:12px;">
+                  <div class="debug-label" style="margin-bottom:6px;">Case 1: Forwarded PDF</div>
+                  <input type="file" id="forensic-pdf" accept=".pdf">
+                  <button class="btn-outline" onclick="inspectPdfLeak()">Inspect Forwarded PDF</button>
+                </div>
+                <div style="margin-bottom:12px;">
+                  <div class="debug-label" style="margin-bottom:6px;">Case 2: Copied Text</div>
+                  <textarea id="forensic-text" placeholder="Paste copied text from a suspected leaked paper" rows="6" style="width:100%; resize:vertical; padding:12px 13px; margin:8px 0; border-radius:12px; border:1px solid rgba(16,38,96,0.18); background:#f8f9ff; color:var(--text); font-family:inherit; font-size:14px;"></textarea>
+                  <button class="btn-outline" onclick="inspectPastedTextWatermark()">Inspect Copied Text</button>
+                </div>
+                <div>
+                  <div class="debug-label" style="margin-bottom:6px;">Case 3: Photo / Print OCR</div>
+                  <textarea id="forensic-photo-text" placeholder="Paste OCR text from a photo of the printed paper" rows="4" style="width:100%; resize:vertical; padding:12px 13px; margin:8px 0; border-radius:12px; border:1px solid rgba(16,38,96,0.18); background:#f8f9ff; color:var(--text); font-family:inherit; font-size:14px;"></textarea>
+                  <button class="btn-outline" onclick="inspectPhotoLeak()">Inspect Photo OCR</button>
                 </div>
               </div>
               <div class="card">
                 <h3>Forensic guide</h3>
                 <div class="step-list" style="margin-top:12px;">
-                  <div class="step-item"><strong>Paste copied text</strong><span>Paste the copied paper text to detect the embedded center trace and fingerprint.</span></div>
+                  <div class="step-item"><strong>Case 1: Forwarded PDF</strong><span>Extracts invisible zero-width watermark from the PDF text layer.</span></div>
+                  <div class="step-item"><strong>Case 2: Copied text</strong><span>Zero-width watermark survives copy/paste and identifies the center.</span></div>
+                  <div class="step-item"><strong>Case 3: Photo / print</strong><span>Visible watermark text (center + timestamp) is read from OCR text.</span></div>
+                </div>
+                <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--line);">
+                  <div class="debug-label" style="margin-bottom:10px;">Simulate Leak Tests</div>
+                  <p style="color:var(--muted); font-size:0.88rem; margin:0 0 12px; line-height:1.5;">Generate realistic test data and run forensic inspection for each case with one click.</p>
+                  <div style="display:grid; gap:8px;">
+                    <button class="btn-outline" id="demo-case1-btn" onclick="demoCaseTest(1)" style="font-size:13px;">▶ Test Case 1 — Forwarded PDF</button>
+                    <button class="btn-outline" id="demo-case2-btn" onclick="demoCaseTest(2)" style="font-size:13px;">▶ Test Case 2 — Copied Text</button>
+                    <button class="btn-outline" id="demo-case3-btn" onclick="demoCaseTest(3)" style="font-size:13px;">▶ Test Case 3 — Photo / OCR</button>
+                  </div>
+                  <div id="demo-status" style="margin-top:10px; font-size:12px; color:var(--muted);"></div>
                 </div>
               </div>
             </div>
@@ -761,6 +784,7 @@
     }
     const UI_STATE_STORAGE_KEY = 'paper_admin_ui_state_v1';
     let state = { adminToken: null, adminPubKey: null };
+    let forensicRawText = null;
 
     if (API_URL) {
       localStorage.setItem('paper_api_url', API_URL);
@@ -790,6 +814,11 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    function stripZeroWidth(value) {
+      return String(value ?? '')
+        .replace(/[\u200b\u200c\u200d\u2060\u2063\u2064]/g, '');
     }
 
     function formatDateTime(value) {
@@ -868,7 +897,24 @@
         matchClass = 'mismatch';
       }
 
+      const modeLabel = {
+        pdf: 'Forwarded PDF',
+        text: 'Copied Text',
+        photo: 'Photo/OCR',
+      };
+
+      const traceStatus = (() => {
+        if (data?.inspection_mode === 'photo') {
+          return data?.visible_trace ? 'Visible watermark detected in OCR text.' : 'No visible watermark detected.';
+        }
+        return data?.watermark_present ? 'Hidden trace detected in copied text.' : 'No hidden trace detected.';
+      })();
+
       container.innerHTML = `
+        <div class="forensic-item">
+          <div class="label">Inspection Mode</div>
+          <div class="value">${escapeHtml(modeLabel[data?.inspection_mode] || data?.inspection_mode || 'N/A')}</div>
+        </div>
         <div class="forensic-item">
           <div class="label">Paper ID</div>
           <div class="value">${escapeHtml(data?.paper_id ?? 'N/A')}</div>
@@ -889,9 +935,33 @@
           <div class="label">Inferred Center ID</div>
           <div class="value">${escapeHtml(data?.inferred_center_id ?? 'Not inferred')}</div>
         </div>
+        <div class="forensic-item">
+          <div class="label">Visible Trace</div>
+          <div class="value">${escapeHtml(data?.visible_trace ?? 'Not detected')}</div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Hidden Payload</div>
+          <div class="value">${escapeHtml(data?.hidden_payload ?? 'Not detected')}</div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Hidden Center ID</div>
+          <div class="value">${escapeHtml(data?.hidden_center_id ?? 'Not detected')}</div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Record Center ID</div>
+          <div class="value">${escapeHtml(data?.record_center_id ?? 'N/A')}</div>
+        </div>
+        <div class="forensic-item">
+          <div class="label">Record Paper ID</div>
+          <div class="value">${escapeHtml(data?.record_paper_id ?? 'N/A')}</div>
+        </div>
+        <div class="forensic-item" style="grid-column: 1 / -1;">
+          <div class="label">Visible Label</div>
+          <div class="value">${escapeHtml(data?.record_visible_label ?? 'N/A')}</div>
+        </div>
         <div class="forensic-item" style="grid-column: 1 / -1;">
           <div class="label">Trace Status</div>
-          <div class="value">${data?.watermark_present ? 'Hidden trace detected in copied text.' : 'No hidden trace detected.'}</div>
+          <div class="value">${escapeHtml(traceStatus)}</div>
         </div>
       `;
 
@@ -969,6 +1039,7 @@
         targetCenterId: document.getElementById('target-center-id').value,
         releaseTime: document.getElementById('release-time').value,
         forensicText: document.getElementById('forensic-text').value,
+        forensicPhotoText: document.getElementById('forensic-photo-text').value,
         timelinePaperId: document.getElementById('timeline-paper-id').value,
         pageId: document.querySelector('.nav-btn.active')?.dataset.page || 'page-account'
       }));
@@ -1022,6 +1093,7 @@
         if (saved.targetCenterId) document.getElementById('target-center-id').value = saved.targetCenterId;
         if (saved.releaseTime) document.getElementById('release-time').value = saved.releaseTime;
         if (saved.forensicText) document.getElementById('forensic-text').value = saved.forensicText;
+        if (saved.forensicPhotoText) document.getElementById('forensic-photo-text').value = saved.forensicPhotoText;
         if (saved.timelinePaperId) document.getElementById('timeline-paper-id').value = saved.timelinePaperId;
         showAdminPage(saved.pageId || 'page-account');
         if (state.adminToken) await applyAdminSession();
@@ -1165,10 +1237,10 @@
     }
 
     async function inspectPastedTextWatermark() {
-      const pastedText = document.getElementById('forensic-text').value.trim();
+      const pastedText = (forensicRawText || document.getElementById('forensic-text').value).trim();
       if (!pastedText) return showAlert('forensics-alert', 'error', 'Paste copied paper text first.');
 
-      const payload = { text: pastedText };
+      const payload = { text: pastedText, mode: 'text' };
 
       const res = await fetch(`${API_URL}/admin/forensics/inspect`, {
         method: 'POST',
@@ -1183,6 +1255,153 @@
       renderForensicInspection(data);
       showAlert('forensics-alert', data.watermark_present ? 'success' : 'error', data.watermark_present ? 'Watermark trace found in pasted text.' : 'No watermark trace found in pasted text.');
       await loadAdminDashboard();
+    }
+
+    async function inspectPdfLeak() {
+      const fileInput = document.getElementById('forensic-pdf');
+      if (!fileInput.files.length) return showAlert('forensics-alert', 'error', 'Select a leaked PDF first.');
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('mode', 'pdf');
+
+      const res = await fetch(`${API_URL}/admin/forensics/inspect`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${state.adminToken}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) return showAlert('forensics-alert', 'error', data.error || 'PDF inspection failed');
+      renderForensicInspection(data);
+      showAlert('forensics-alert', data.watermark_present ? 'success' : 'error', data.watermark_present ? 'Watermark trace found in PDF.' : 'No watermark trace found in PDF.');
+      await loadAdminDashboard();
+    }
+
+    async function inspectPhotoLeak() {
+      const pastedText = document.getElementById('forensic-photo-text').value.trim();
+      if (!pastedText) return showAlert('forensics-alert', 'error', 'Paste OCR text from the photo first.');
+
+      const payload = { text: pastedText, mode: 'photo' };
+
+      const res = await fetch(`${API_URL}/admin/forensics/inspect`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${state.adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) return showAlert('forensics-alert', 'error', data.error || 'Photo inspection failed');
+      renderForensicInspection(data);
+      showAlert('forensics-alert', data.visible_trace ? 'success' : 'error', data.visible_trace ? 'Visible watermark detected from OCR.' : 'No visible watermark detected from OCR.');
+      await loadAdminDashboard();
+    }
+
+    async function demoCaseTest(caseNum) {
+      if (!state.adminToken) return showAlert('forensics-alert', 'error', 'Login as admin first.');
+      const statusEl = document.getElementById('demo-status');
+      const btnId = `demo-case${caseNum}-btn`;
+      const btn = document.getElementById(btnId);
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+      statusEl.textContent = `Generating test data for Case ${caseNum}...`;
+
+      try {
+        // Step 1: Generate test data from backend
+        const genRes = await fetch(`${API_URL}/admin/forensics/generate-test-data`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${state.adminToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ center_id: 42 })
+        });
+        if (!genRes.ok) {
+          const err = await genRes.json();
+          statusEl.textContent = '';
+          return showAlert('forensics-alert', 'error', err.error || 'Failed to generate test data');
+        }
+        const testData = await genRes.json();
+
+        if (caseNum === 1) {
+          // Case 1: Submit watermarked PDF
+          statusEl.textContent = 'Inspecting watermarked PDF...';
+          const pdfBytes = Uint8Array.from(atob(testData.case1_pdf_b64), c => c.charCodeAt(0));
+          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+          const formData = new FormData();
+          formData.append('file', blob, 'demo_leaked.pdf');
+          formData.append('mode', 'pdf');
+
+          const inspectRes = await fetch(`${API_URL}/admin/forensics/inspect`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${state.adminToken}` },
+            body: formData
+          });
+          const inspectData = await inspectRes.json();
+          if (!inspectRes.ok) return showAlert('forensics-alert', 'error', inspectData.error || 'PDF inspection failed');
+          renderForensicInspection(inspectData);
+          showAlert('forensics-alert', inspectData.watermark_present ? 'success' : 'error',
+            inspectData.watermark_present
+              ? '✅ Case 1 PASSED — Watermark found in forwarded PDF!'
+              : '❌ Case 1 — No watermark detected in PDF.');
+          statusEl.textContent = 'Case 1 test complete.';
+
+        } else if (caseNum === 2) {
+          // Case 2: Auto-fill textarea with zero-width encoded text
+          const textarea = document.getElementById('forensic-text');
+          textarea.value = testData.case2_text;
+          statusEl.textContent = 'Inspecting copied text with hidden watermark...';
+          persistUiState();
+
+          const inspectRes = await fetch(`${API_URL}/admin/forensics/inspect`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${state.adminToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text: testData.case2_text, mode: 'text' })
+          });
+          const inspectData = await inspectRes.json();
+          if (!inspectRes.ok) return showAlert('forensics-alert', 'error', inspectData.error || 'Text inspection failed');
+          renderForensicInspection(inspectData);
+          showAlert('forensics-alert', inspectData.watermark_present ? 'success' : 'error',
+            inspectData.watermark_present
+              ? '✅ Case 2 PASSED — Hidden watermark found in copied text!'
+              : '❌ Case 2 — No watermark detected in text.');
+          statusEl.textContent = 'Case 2 test complete.';
+
+        } else if (caseNum === 3) {
+          // Case 3: Auto-fill OCR textarea with visible watermark text
+          const textarea = document.getElementById('forensic-photo-text');
+          textarea.value = testData.case3_ocr_text;
+          statusEl.textContent = 'Inspecting photo/OCR text...';
+          persistUiState();
+
+          const inspectRes = await fetch(`${API_URL}/admin/forensics/inspect`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${state.adminToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text: testData.case3_ocr_text, mode: 'photo' })
+          });
+          const inspectData = await inspectRes.json();
+          if (!inspectRes.ok) return showAlert('forensics-alert', 'error', inspectData.error || 'Photo inspection failed');
+          renderForensicInspection(inspectData);
+          showAlert('forensics-alert', inspectData.visible_trace ? 'success' : 'error',
+            inspectData.visible_trace
+              ? '✅ Case 3 PASSED — Visible watermark detected from OCR!'
+              : '❌ Case 3 — No visible watermark detected.');
+          statusEl.textContent = 'Case 3 test complete.';
+        }
+
+        await loadAdminDashboard();
+      } catch (err) {
+        console.error('Demo test failed:', err);
+        showAlert('forensics-alert', 'error', 'Demo test failed: ' + err.message);
+        statusEl.textContent = '';
+      } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      }
     }
 
     async function loadPaperTimeline() {
@@ -1201,13 +1420,30 @@
     }
 
     function wirePersistedInputs() {
-      ['target-center-id', 'release-time', 'timeline-paper-id', 'forensic-text'].forEach(id => {
+      ['target-center-id', 'release-time', 'timeline-paper-id', 'forensic-text', 'forensic-photo-text'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.addEventListener('input', persistUiState);
           el.addEventListener('change', persistUiState);
         }
       });
+
+      const forensicInput = document.getElementById('forensic-text');
+      if (forensicInput) {
+        forensicInput.addEventListener('paste', (event) => {
+          const rawText = event.clipboardData?.getData('text') || '';
+          if (!rawText) return;
+          event.preventDefault();
+          forensicRawText = rawText;
+          forensicInput.value = stripZeroWidth(rawText);
+          persistUiState();
+        });
+        forensicInput.addEventListener('input', (event) => {
+          if (event.inputType && event.inputType !== 'insertFromPaste') {
+            forensicRawText = null;
+          }
+        });
+      }
     }
 
     document.getElementById('release-time').value = new Date().toISOString().slice(0, 16);

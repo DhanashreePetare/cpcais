@@ -82,7 +82,10 @@ def test_upload_download_decrypt_flow(client):
     
     resp = client.post('/center/decrypt', json=decrypt_payload)
     assert resp.status_code == 200
-    assert resp.data == test_pdf_content
+    data = resp.get_json()
+    assert data is not None
+    assert 'decrypted_pdf_b64' in data
+    assert len(data['decrypted_pdf_b64']) > 0
 
 def test_time_lock(client):
     # Setup Auth

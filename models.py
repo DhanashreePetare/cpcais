@@ -31,3 +31,13 @@ class AuditLog(db.Model):
     action = db.Column(db.String(100), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     details = db.Column(db.Text, nullable=True)
+
+
+class WatermarkRecord(db.Model):
+    __tablename__ = 'watermark_records'
+    id = db.Column(db.Integer, primary_key=True)
+    paper_id = db.Column(db.Integer, db.ForeignKey('papers.id'), nullable=False)
+    center_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    wm_payload = db.Column(db.String(120), nullable=False)
+    visible_label = db.Column(db.String(200), nullable=True)
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow)
